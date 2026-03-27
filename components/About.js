@@ -22,8 +22,7 @@ export default function About() {
               background: '#0f2d16', border: '1px solid #1a4a20',
             }}>
               <img src="/founder.jpg" alt="Chief Emeka Agba"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-                onError={e => e.target.style.display = 'none'} />
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: '#f0f0f0', fontWeight: 'bold', fontSize: '1.05rem' }}>Chief Emeka Agba</div>
