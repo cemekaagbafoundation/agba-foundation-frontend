@@ -1,0 +1,47 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-page:       #0a1f0f;
+  --bg-card:       #0f2d16;
+  --bg-deep:       #061209;
+  --border:        #1a4a20;
+  --border-light:  #122a15;
+  --gold:          #c9911a;
+  --gold-bright:   #e8b84b;
+  --text-primary:  #f0f0f0;
+  --text-muted:    #7a9e7a;
+  --text-body:     #c8dcc8;
+  --green-success: #4ade80;
+  --red-error:     #f87171;
+}
+
+body {
+  font-family: 'Georgia', serif;
+  background: var(--bg-page);
+  color: var(--text-body);
+}
+
+a { text-decoration: none; }
+
+select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+input, textarea, select {
+  background: var(--bg-deep) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
