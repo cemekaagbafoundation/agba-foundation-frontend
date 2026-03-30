@@ -5,6 +5,64 @@ import { useRouter } from 'next/navigation'
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
+function HeroImageUpload({ section, label, hint, uploadFile }) {
+  const [file, setFile] = useState(null)
+  const [title, setTitle] = useState('')
+  const [currentImg, setCurrentImg] = useState('')
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    axios.get(`${API}/api/hero-images`)
+      .then(r => {
+        const item = r.data.find(h => h.section === section)
+        if (item) {
+          setCurrentImg(item.image_url || '')
+          setTitle(item.title || '')
+        }
+      }).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    try {
+      let image_url = currentImg
+      if (file) image_url = await uploadFile(file)
+      await axios.put(
+        `${API}/api/hero-images/${section}`,
+        { image_url, title },
+        { headers: { 'x-admin-token': localStorage.getItem('adminToken') } }
+      )
+      setCurrentImg(image_url)
+      setMsg('Saved!'); setTimeout(() => setMsg(''), 3000)
+    } catch (err) {
+      setMsg('Error: ' + (err.response?.data?.error || err.message))
+    }
+  }
+
+  const inp2 = {
+    padding: '0.7rem', borderRadius: '7px', border: '1px solid #1a4a20',
+    background: '#061209', color: '#fff', fontSize: '0.9rem', outline: 'none',
+    width: '100%', marginBottom: '0.8rem', display: 'block'
+  }
+
+  return (
+    <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem', marginBottom: '1rem' }}>
+      <label style={{ color: '#c9911a', fontSize: '0.85rem', display: 'block', marginBottom: '0.2rem', fontWeight: 'bold' }}>{label}</label>
+      <p style={{ color: '#7a9e7a', fontSize: '0.78rem', marginBottom: '0.8rem' }}>{hint}</p>
+      {currentImg && (
+        <img src={currentImg} alt={label} style={{ height: '80px', objectFit: 'contain', marginBottom: '0.8rem', borderRadius: '6px', display: 'block' }} />
+      )}
+      <input style={inp2} placeholder={`Title for ${label}`} value={title} onChange={e => setTitle(e.target.value)} />
+      <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} style={{ color: '#c8dcc8', marginBottom: '0.8rem', display: 'block' }} />
+      <button
+        onClick={save}
+        style={{ background: '#c9911a', color: '#061209', border: 'none', borderRadius: '7px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+        💾 Save {label}
+      </button>
+      {msg && <span style={{ color: msg.startsWith('Error') ? '#f87171' : '#4ade80', marginLeft: '1rem', fontSize: '0.85rem' }}>{msg}</span>}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const [token, setToken] = useState('')
@@ -32,7 +90,6 @@ export default function Dashboard() {
 
   const [imageFile, setImageFile] = useState(null)
   const [uploadMsg, setUploadMsg] = useState('')
-  const [logoFile, setLogoFile] = useState(null)
   const [stats, setStats] = useState({ youths_trained: 0, programs_completed: 0, jobs_created: 0, funds_utilized: 0 })
   const [statsMsg, setStatsMsg] = useState('')
   const [contentEdits, setContentEdits] = useState({})
@@ -48,14 +105,7 @@ export default function Dashboard() {
   const [partnerFile, setPartnerFile] = useState(null)
   const [partnerMsg, setPartnerMsg] = useState('')
 
-  // Always get fresh token from localStorage
-  const getHeaders = () => {
-    const token = localStorage.getItem('adminToken') 
-      || sessionStorage.getItem('adminToken')
-      || document.cookie.split('; ').find(r => r.startsWith('adminToken='))?.split('=')[1]
-      || ''
-    return { 'x-admin-token': token }
-  }
+  const getHeaders = () => ({ 'x-admin-token': localStorage.getItem('adminToken') })
 
   useEffect(() => {
     const t = localStorage.getItem('adminToken')
@@ -109,7 +159,6 @@ export default function Dashboard() {
     }
   }
 
-  // Application filters
   useEffect(() => {
     let result = [...applications]
     if (appSearch) {
@@ -127,12 +176,14 @@ export default function Dashboard() {
     setFilteredApps(result)
   }, [appSearch, appFilterCountry, appFilterSex, appFilterProgram, appFilterDate, applications])
 
-  // Message filters
   useEffect(() => {
     let result = [...messages]
     if (msgSearch) {
       const q = msgSearch.toLowerCase()
-      result = result.filter(m => m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q))
+      result = result.filter(m =>
+        m.name?.toLowerCase().includes(q) ||
+        m.email?.toLowerCase().includes(q)
+      )
     }
     if (msgFilterDate) result = result.filter(m => m.created_at?.startsWith(msgFilterDate))
     setFilteredMsgs(result)
@@ -163,7 +214,6 @@ export default function Dashboard() {
     }
   }
 
-  // Always reads fresh token for uploads
   const uploadFile = async (file) => {
     const fd = new FormData()
     fd.append('image', file)
@@ -184,7 +234,6 @@ export default function Dashboard() {
       setGallery(res.data)
       setUploadMsg('Uploaded!'); setTimeout(() => setUploadMsg(''), 3000)
     } catch (err) {
-      console.error('Upload error:', err.response?.data || err.message)
       setUploadMsg('Failed: ' + (err.response?.data?.error || err.message))
     }
   }
@@ -209,7 +258,9 @@ export default function Dashboard() {
       }
       const res = await axios.get(`${API}/api/programs`)
       setPrograms(res.data)
-      setProgramForm({ name: '', description: '' }); setProgramFile(null); setEditingProgram(null)
+      setProgramForm({ name: '', description: '' })
+      setProgramFile(null)
+      setEditingProgram(null)
       setProgramMsg('Saved!'); setTimeout(() => setProgramMsg(''), 3000)
     } catch (err) {
       setProgramMsg('Error: ' + (err.response?.data?.error || err.message))
@@ -232,7 +283,8 @@ export default function Dashboard() {
       await axios.post(`${API}/api/partners`, { ...partnerForm, logo_url }, { headers: getHeaders() })
       const res = await axios.get(`${API}/api/partners`)
       setPartners(res.data)
-      setPartnerForm({ name: '', website: '', type: 'partner' }); setPartnerFile(null)
+      setPartnerForm({ name: '', website: '', type: 'partner' })
+      setPartnerFile(null)
       setPartnerMsg('Partner added!'); setTimeout(() => setPartnerMsg(''), 3000)
     } catch (err) {
       setPartnerMsg('Error: ' + (err.response?.data?.error || err.message))
@@ -251,57 +303,19 @@ export default function Dashboard() {
   const tabs = ['applications', 'messages', 'newsletter', 'donations', 'gallery', 'programs', 'partners', 'content', 'impact']
 
   const tabBtn = (t) => ({
-    padding: '0.55rem 1rem',
-    border: '1px solid #1a4a20',
-    borderRadius: '6px',
-    cursor: 'pointer',
+    padding: '0.55rem 1rem', border: '1px solid #1a4a20', borderRadius: '6px', cursor: 'pointer',
     background: tab === t ? '#c9911a' : '#0d1f0d',
     color: tab === t ? '#061209' : '#aaa',
-    fontWeight: tab === t ? 'bold' : 'normal',
-    fontSize: '0.82rem',
+    fontWeight: tab === t ? 'bold' : 'normal', fontSize: '0.82rem',
   })
 
   const inp = {
-    padding: '0.75rem',
-    borderRadius: '7px',
-    border: '1px solid #1a4a20',
-    background: '#061209',
-    color: '#fff',
-    fontSize: '0.9rem',
-    outline: 'none'
+    padding: '0.75rem', borderRadius: '7px', border: '1px solid #1a4a20',
+    background: '#061209', color: '#fff', fontSize: '0.9rem', outline: 'none'
   }
-
-  const btn = {
-    background: '#c9911a',
-    color: '#061209',
-    border: 'none',
-    borderRadius: '7px',
-    padding: '0.6rem 1.2rem',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '0.85rem'
-  }
-
-  const btnGhost = {
-    background: 'transparent',
-    color: '#c9911a',
-    border: '1px solid #c9911a',
-    borderRadius: '7px',
-    padding: '0.5rem 1rem',
-    cursor: 'pointer',
-    fontSize: '0.82rem'
-  }
-
-  const btnRed = {
-    background: 'transparent',
-    color: '#f87171',
-    border: '1px solid #f87171',
-    borderRadius: '7px',
-    padding: '0.5rem 1rem',
-    cursor: 'pointer',
-    fontSize: '0.82rem'
-  }
-
+  const btn = { background: '#c9911a', color: '#061209', border: 'none', borderRadius: '7px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }
+  const btnGhost = { background: 'transparent', color: '#c9911a', border: '1px solid #c9911a', borderRadius: '7px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.82rem' }
+  const btnRed = { background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: '7px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.82rem' }
   const uniqueVals = (arr, key) => [...new Set(arr.map(a => a[key]).filter(Boolean))]
 
   return (
@@ -310,7 +324,7 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <h1 style={{ color: '#c9911a', fontSize: '1.4rem' }}>Admin Dashboard — Chief Emeka Agba Foundation</h1>
-          <button onClick={() => { localStorage.removeItem('adminToken'); router.push('/admin') }}
+          <button onClick={() => { localStorage.removeItem('adminToken'); sessionStorage.removeItem('adminToken'); router.push('/admin') }}
             style={{ ...btnGhost, color: '#7a9e7a', borderColor: '#1a4a20' }}>Logout</button>
         </div>
 
@@ -466,11 +480,12 @@ export default function Dashboard() {
         {/* ══ GALLERY ══ */}
         {tab === 'gallery' && (
           <div>
-            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Gallery</h2>
+            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Photo Gallery</h2>
+            <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1rem' }}>Note: Hero images, logo and portrait uploads are managed under the Content tab.</p>
             <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.5rem', marginBottom: '2rem' }}>
-              <p style={{ color: '#7a9e7a', marginBottom: '1rem', fontSize: '0.9rem' }}>Upload new image:</p>
+              <p style={{ color: '#7a9e7a', marginBottom: '1rem', fontSize: '0.9rem' }}>Upload new gallery image:</p>
               <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} style={{ color: '#c8dcc8', marginBottom: '1rem', display: 'block' }} />
-              <button style={btn} onClick={uploadGallery}>Upload</button>
+              <button style={btn} onClick={uploadGallery}>Upload to Gallery</button>
               {uploadMsg && <span style={{ color: uploadMsg.startsWith('Failed') ? '#f87171' : '#4ade80', marginLeft: '1rem', fontSize: '0.9rem' }}>{uploadMsg}</span>}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
@@ -480,7 +495,7 @@ export default function Dashboard() {
                   <button onClick={() => deleteGallery(img.id)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200,0,0,0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
                 </div>
               ))}
-              {gallery.length === 0 && <p style={{ color: '#7a9e7a' }}>No images yet.</p>}
+              {gallery.length === 0 && <p style={{ color: '#7a9e7a' }}>No gallery images yet.</p>}
             </div>
           </div>
         )}
@@ -523,7 +538,10 @@ export default function Dashboard() {
         {/* ══ PARTNERS ══ */}
         {tab === 'partners' && (
           <div>
-            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Strategic Partners & Sponsors</h2>
+            <h2 style={{ color: '#c9911a', marginBottom: '0.5rem' }}>Strategic Partners & Sponsors</h2>
+            <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+              📧 <a href="mailto:partners@chiefemekaagbafoundation.com" style={{ color: '#c9911a' }}>partners@chiefemekaagbafoundation.com</a>
+            </p>
             <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.5rem', marginBottom: '2rem' }}>
               <h3 style={{ color: '#f0f0f0', marginBottom: '1rem' }}>Add Partner / Sponsor</h3>
               <input style={{ ...inp, width: '100%', marginBottom: '0.8rem', display: 'block' }} placeholder="Organisation Name" value={partnerForm.name} onChange={e => setPartnerForm({ ...partnerForm, name: e.target.value })} />
@@ -541,7 +559,7 @@ export default function Dashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
               {partners.map(p => (
                 <div key={p.id} style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1rem' }}>
-                  {p.logo_url && <img src={p.logo_url} alt={p.name} style={{ height: '60px', objectFit: 'contain', marginBottom: '0.5rem' }} />}
+                  {p.logo_url && <img src={p.logo_url} alt={p.name} style={{ height: '60px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block' }} />}
                   <div style={{ color: '#f0f0f0', fontWeight: 'bold' }}>{p.name}</div>
                   <div style={{ color: '#c9911a', fontSize: '0.78rem', textTransform: 'uppercase', margin: '0.3rem 0' }}>{p.type}</div>
                   {p.website && <a href={p.website} target="_blank" style={{ color: '#7a9e7a', fontSize: '0.8rem', display: 'block', marginBottom: '0.5rem' }}>{p.website}</a>}
@@ -557,9 +575,10 @@ export default function Dashboard() {
         {tab === 'content' && (
           <div>
             <h2 style={{ color: '#c9911a', marginBottom: '0.5rem' }}>Content Management</h2>
-            <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>Edit all text content, video URL, and policies. Click Save after each edit.</p>
+            <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>Edit text content and manage all section images. Click Save after each edit.</p>
             {contentMsg && <p style={{ color: contentMsg.startsWith('Error') ? '#f87171' : '#4ade80', marginBottom: '1rem' }}>{contentMsg}</p>}
 
+            {/* Text content sections */}
             {[
               { key: 'hero', label: 'Hero Tagline' },
               { key: 'about', label: 'About Writeup' },
@@ -580,22 +599,38 @@ export default function Dashboard() {
               </div>
             ))}
 
-            <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem', marginBottom: '1rem' }}>
-              <label style={{ color: '#c9911a', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Foundation Logo</label>
-              <input type="file" accept="image/*" onChange={e => setLogoFile(e.target.files[0])} style={{ color: '#c8dcc8', marginBottom: '1rem', display: 'block' }} />
-              <button style={btn} onClick={async () => {
-                if (!logoFile) return
-                try {
-                  const url = await uploadFile(logoFile)
-                  alert('Logo uploaded: ' + url + '\nUse this URL in your Navbar component.')
-                } catch (err) {
-                  alert('Upload failed: ' + (err.response?.data?.error || err.message))
-                }
-              }}>💾 Upload Logo</button>
+            {/* Hero image uploads */}
+            <div style={{ borderTop: '1px solid #1a4a20', paddingTop: '1.5rem', marginTop: '1.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Image & Logo Management</h3>
             </div>
 
+            <HeroImageUpload
+              section="logo"
+              label="Foundation Logo"
+              hint="Appears in the Navbar beside the foundation name"
+              uploadFile={uploadFile}
+            />
+            <HeroImageUpload
+              section="main_hero"
+              label="Main Hero Image"
+              hint="Large image on the homepage hero section (right side)"
+              uploadFile={uploadFile}
+            />
+            <HeroImageUpload
+              section="about_hero"
+              label="Founder Portrait (About Section)"
+              hint="Portrait photo of Chief Emeka Agba in the About section"
+              uploadFile={uploadFile}
+            />
+            <HeroImageUpload
+              section="transformation_hero"
+              label="Youth Transformation City Image"
+              hint="Image shown in the Chief Emeka Agba Youth Transformation City section"
+              uploadFile={uploadFile}
+            />
+
             {contentEdits['youtube_url'] && (
-              <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem' }}>
+              <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem', marginTop: '1rem' }}>
                 <label style={{ color: '#c9911a', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>YouTube Preview</label>
                 <div style={{ borderRadius: '8px', overflow: 'hidden', aspectRatio: '16/9' }}>
                   <iframe src={contentEdits['youtube_url']} width="100%" height="100%" frameBorder="0" allowFullScreen />
