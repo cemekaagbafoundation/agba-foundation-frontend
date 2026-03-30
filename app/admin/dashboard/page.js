@@ -49,10 +49,18 @@ export default function Dashboard() {
   const [partnerMsg, setPartnerMsg] = useState('')
 
   // Always get fresh token from localStorage
-  const getHeaders = () => ({ 'x-admin-token': localStorage.getItem('adminToken') })
+  const getHeaders = () => {
+    const token = localStorage.getItem('adminToken') 
+      || sessionStorage.getItem('adminToken')
+      || document.cookie.split('; ').find(r => r.startsWith('adminToken='))?.split('=')[1]
+      || ''
+    return { 'x-admin-token': token }
+  }
 
   useEffect(() => {
     const t = localStorage.getItem('adminToken')
+      || sessionStorage.getItem('adminToken')
+      || document.cookie.split('; ').find(r => r.startsWith('adminToken='))?.split('=')[1]
     if (!t) { router.push('/admin'); return }
     setToken(t)
     loadAll(t)

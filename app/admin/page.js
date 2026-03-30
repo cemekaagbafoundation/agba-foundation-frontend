@@ -12,7 +12,11 @@ export default function AdminLogin() {
 
   const login = () => {
     if (!password) { setError('Enter your admin password'); return }
+    // Store in both localStorage and sessionStorage for redundancy
     localStorage.setItem('adminToken', password)
+    sessionStorage.setItem('adminToken', password)
+    // Also set a cookie as backup
+    document.cookie = `adminToken=${password}; path=/; max-age=86400`
     router.push('/admin/dashboard')
   }
 
