@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
-function HeroImageUpload({ section, label, hint, uploadFile }) {
+function HeroImageUpload({ section, label, hint }) {
   const [file, setFile] = useState(null)
   const [title, setTitle] = useState('')
   const [currentImg, setCurrentImg] = useState('')
@@ -24,14 +24,27 @@ function HeroImageUpload({ section, label, hint, uploadFile }) {
 
   const save = async () => {
     try {
+      const token = localStorage.getItem('adminToken')
       let image_url = currentImg
-      if (file) image_url = await uploadFile(file)
-      await axios.put(
-        `${API}/api/hero-images/${section}`,
-        { image_url, title },
-        { headers: { 'x-admin-token': localStorage.getItem('adminToken') } }
-      )
-      setCurrentImg(image_url)
+
+      if (file) {
+        const fd = new FormData()
+        fd.append('image', file)
+        if (title) fd.append('title', title)
+        const res = await axios.post(
+          `${API}/api/hero-images/upload/${section}`,
+          fd,
+          { headers: { 'x-admin-token': token, 'Content-Type': 'multipart/form-data' } }
+        )
+        image_url = res.data.image_url
+        setCurrentImg(image_url)
+      } else {
+        await axios.put(
+          `${API}/api/hero-images/${section}`,
+          { image_url, title },
+          { headers: { 'x-admin-token': token } }
+        )
+      }
       setMsg('Saved!'); setTimeout(() => setMsg(''), 3000)
     } catch (err) {
       setMsg('Error: ' + (err.response?.data?.error || err.message))
@@ -49,13 +62,11 @@ function HeroImageUpload({ section, label, hint, uploadFile }) {
       <label style={{ color: '#c9911a', fontSize: '0.85rem', display: 'block', marginBottom: '0.2rem', fontWeight: 'bold' }}>{label}</label>
       <p style={{ color: '#7a9e7a', fontSize: '0.78rem', marginBottom: '0.8rem' }}>{hint}</p>
       {currentImg && (
-        <img src={currentImg} alt={label} style={{ height: '80px', objectFit: 'contain', marginBottom: '0.8rem', borderRadius: '6px', display: 'block' }} />
+        <img src={currentImg} alt={label} style={{ height: '80px', objectFit: 'contain', marginBottom: '0.8rem', borderRadius: '6px', display: 'block', border: '1px solid #1a4a20' }} />
       )}
-      <input style={inp2} placeholder={`Title for ${label}`} value={title} onChange={e => setTitle(e.target.value)} />
+      <input style={inp2} placeholder={`Title / Name for ${label}`} value={title} onChange={e => setTitle(e.target.value)} />
       <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} style={{ color: '#c8dcc8', marginBottom: '0.8rem', display: 'block' }} />
-      <button
-        onClick={save}
-        style={{ background: '#c9911a', color: '#061209', border: 'none', borderRadius: '7px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+      <button onClick={save} style={{ background: '#c9911a', color: '#061209', border: 'none', borderRadius: '7px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
         💾 Save {label}
       </button>
       {msg && <span style={{ color: msg.startsWith('Error') ? '#f87171' : '#4ade80', marginLeft: '1rem', fontSize: '0.85rem' }}>{msg}</span>}
@@ -65,7 +76,6 @@ function HeroImageUpload({ section, label, hint, uploadFile }) {
 
 export default function Dashboard() {
   const router = useRouter()
-  const [token, setToken] = useState('')
   const [tab, setTab] = useState('applications')
 
   const [applications, setApplications] = useState([])
@@ -112,14 +122,12 @@ export default function Dashboard() {
       || sessionStorage.getItem('adminToken')
       || document.cookie.split('; ').find(r => r.startsWith('adminToken='))?.split('=')[1]
     if (!t) { router.push('/admin'); return }
-    setToken(t)
     loadAll(t)
   }, [])
 
   const loadAll = async (t) => {
     const h = { 'x-admin-token': t || localStorage.getItem('adminToken') }
     const safe = (p) => p.catch(() => ({ data: [] }))
-
     const [appsRes, newsRes, donaRes, msgsRes, galRes, progRes, transRes, contentRes, partRes] = await Promise.all([
       safe(axios.get(`${API}/api/apply`, { headers: h })),
       safe(axios.get(`${API}/api/newsletter`, { headers: h })),
@@ -131,7 +139,6 @@ export default function Dashboard() {
       safe(axios.get(`${API}/api/content`)),
       safe(axios.get(`${API}/api/partners`)),
     ])
-
     setApplications(appsRes.data || [])
     setFilteredApps(appsRes.data || [])
     setNewsletters(newsRes.data || [])
@@ -141,7 +148,6 @@ export default function Dashboard() {
     setGallery(galRes.data || [])
     setPrograms(progRes.data || [])
     setPartners(partRes.data || [])
-
     if (transRes.data) {
       setStats({
         youths_trained: transRes.data.youths_trained || 0,
@@ -150,7 +156,6 @@ export default function Dashboard() {
         funds_utilized: transRes.data.funds_utilized || 0,
       })
     }
-
     if (Array.isArray(contentRes.data)) {
       const map = {}
       contentRes.data.forEach(c => { map[c.section_name] = { id: c.id, value: c.content } })
@@ -180,10 +185,7 @@ export default function Dashboard() {
     let result = [...messages]
     if (msgSearch) {
       const q = msgSearch.toLowerCase()
-      result = result.filter(m =>
-        m.name?.toLowerCase().includes(q) ||
-        m.email?.toLowerCase().includes(q)
-      )
+      result = result.filter(m => m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q))
     }
     if (msgFilterDate) result = result.filter(m => m.created_at?.startsWith(msgFilterDate))
     setFilteredMsgs(result)
@@ -218,10 +220,7 @@ export default function Dashboard() {
     const fd = new FormData()
     fd.append('image', file)
     const res = await axios.post(`${API}/api/gallery/upload`, fd, {
-      headers: {
-        'x-admin-token': localStorage.getItem('adminToken'),
-        'Content-Type': 'multipart/form-data'
-      }
+      headers: { 'x-admin-token': localStorage.getItem('adminToken'), 'Content-Type': 'multipart/form-data' }
     })
     return res.data.image_url
   }
@@ -242,9 +241,23 @@ export default function Dashboard() {
     try {
       await axios.delete(`${API}/api/gallery/${id}`, { headers: getHeaders() })
       setGallery(gallery.filter(g => g.id !== id))
-    } catch (err) {
-      console.error('Delete error:', err.response?.data || err.message)
-    }
+    } catch (err) { console.error(err) }
+  }
+
+  const deleteNewsletter = async (id) => {
+    try {
+      await axios.delete(`${API}/api/newsletter/${id}`, { headers: getHeaders() })
+      setNewsletters(newsletters.filter(n => n.id !== id))
+    } catch (err) { console.error(err) }
+  }
+
+  const deleteApplication = async (id) => {
+    if (!confirm('Delete this application? This cannot be undone.')) return
+    try {
+      await axios.delete(`${API}/api/apply/${id}`, { headers: getHeaders() })
+      setApplications(applications.filter(a => a.id !== id))
+      setFilteredApps(filteredApps.filter(a => a.id !== id))
+    } catch (err) { console.error(err) }
   }
 
   const saveProgram = async () => {
@@ -258,22 +271,17 @@ export default function Dashboard() {
       }
       const res = await axios.get(`${API}/api/programs`)
       setPrograms(res.data)
-      setProgramForm({ name: '', description: '' })
-      setProgramFile(null)
-      setEditingProgram(null)
+      setProgramForm({ name: '', description: '' }); setProgramFile(null); setEditingProgram(null)
       setProgramMsg('Saved!'); setTimeout(() => setProgramMsg(''), 3000)
-    } catch (err) {
-      setProgramMsg('Error: ' + (err.response?.data?.error || err.message))
-    }
+    } catch (err) { setProgramMsg('Error: ' + (err.response?.data?.error || err.message)) }
   }
 
   const deleteProgram = async (id) => {
+    if (!confirm('Delete this program?')) return
     try {
       await axios.delete(`${API}/api/programs/${id}`, { headers: getHeaders() })
       setPrograms(programs.filter(p => p.id !== id))
-    } catch (err) {
-      console.error('Delete program error:', err.response?.data || err.message)
-    }
+    } catch (err) { console.error(err) }
   }
 
   const savePartner = async () => {
@@ -283,39 +291,29 @@ export default function Dashboard() {
       await axios.post(`${API}/api/partners`, { ...partnerForm, logo_url }, { headers: getHeaders() })
       const res = await axios.get(`${API}/api/partners`)
       setPartners(res.data)
-      setPartnerForm({ name: '', website: '', type: 'partner' })
-      setPartnerFile(null)
+      setPartnerForm({ name: '', website: '', type: 'partner' }); setPartnerFile(null)
       setPartnerMsg('Partner added!'); setTimeout(() => setPartnerMsg(''), 3000)
-    } catch (err) {
-      setPartnerMsg('Error: ' + (err.response?.data?.error || err.message))
-    }
+    } catch (err) { setPartnerMsg('Error: ' + (err.response?.data?.error || err.message)) }
   }
 
   const deletePartner = async (id) => {
     try {
       await axios.delete(`${API}/api/partners/${id}`, { headers: getHeaders() })
       setPartners(partners.filter(p => p.id !== id))
-    } catch (err) {
-      console.error('Delete partner error:', err.response?.data || err.message)
-    }
+    } catch (err) { console.error(err) }
   }
 
   const tabs = ['applications', 'messages', 'newsletter', 'donations', 'gallery', 'programs', 'partners', 'content', 'impact']
-
   const tabBtn = (t) => ({
     padding: '0.55rem 1rem', border: '1px solid #1a4a20', borderRadius: '6px', cursor: 'pointer',
     background: tab === t ? '#c9911a' : '#0d1f0d',
     color: tab === t ? '#061209' : '#aaa',
     fontWeight: tab === t ? 'bold' : 'normal', fontSize: '0.82rem',
   })
-
-  const inp = {
-    padding: '0.75rem', borderRadius: '7px', border: '1px solid #1a4a20',
-    background: '#061209', color: '#fff', fontSize: '0.9rem', outline: 'none'
-  }
+  const inp = { padding: '0.75rem', borderRadius: '7px', border: '1px solid #1a4a20', background: '#061209', color: '#fff', fontSize: '0.9rem', outline: 'none' }
   const btn = { background: '#c9911a', color: '#061209', border: 'none', borderRadius: '7px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }
   const btnGhost = { background: 'transparent', color: '#c9911a', border: '1px solid #c9911a', borderRadius: '7px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.82rem' }
-  const btnRed = { background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: '7px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.82rem' }
+  const btnRed = { background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: '7px', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.78rem' }
   const uniqueVals = (arr, key) => [...new Set(arr.map(a => a[key]).filter(Boolean))]
 
   return (
@@ -352,7 +350,7 @@ export default function Dashboard() {
                   {uniqueVals(applications, 'program').map(v => <option key={v}>{v}</option>)}
                 </select>
                 <input style={{ ...inp, width: '100%', colorScheme: 'dark' }} type="date" value={appFilterDate} onChange={e => setAppFilterDate(e.target.value)} />
-                <button style={btnGhost} onClick={() => { setAppSearch(''); setAppFilterCountry(''); setAppFilterSex(''); setAppFilterProgram(''); setAppFilterDate('') }}>Clear Filters</button>
+                <button style={btnGhost} onClick={() => { setAppSearch(''); setAppFilterCountry(''); setAppFilterSex(''); setAppFilterProgram(''); setAppFilterDate('') }}>Clear</button>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button style={btn} onClick={() => copyText(applications.map(a => a.email).join(','), 'all-emails')}>
@@ -363,10 +361,7 @@ export default function Dashboard() {
                 </button>
                 {filteredApps.length < applications.length && <>
                   <button style={btn} onClick={() => copyText(filteredApps.map(a => a.email).join(','), 'sel-emails')}>
-                    {copied === 'sel-emails' ? '✓ Copied' : `Copy Selected Emails (${filteredApps.length})`}
-                  </button>
-                  <button style={btnGhost} onClick={() => copyText(filteredApps.map(a => a.phone).join(','), 'sel-phones')}>
-                    {copied === 'sel-phones' ? '✓ Copied' : `Copy Selected Phones (${filteredApps.length})`}
+                    {copied === 'sel-emails' ? '✓ Copied' : `Copy Selected (${filteredApps.length})`}
                   </button>
                 </>}
               </div>
@@ -375,8 +370,8 @@ export default function Dashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #1a4a20' }}>
-                    {['Name', 'Email', 'Phone', 'Program', 'Country', 'Sex', 'Date'].map(col => (
-                      <th key={col} style={{ padding: '0.7rem 0.5rem', color: '#c9911a', textAlign: 'left', whiteSpace: 'nowrap' }}>{col}</th>
+                    {['Name', 'Email', 'Phone', 'Program', 'Country', 'Sex', 'Date', ''].map((col, i) => (
+                      <th key={i} style={{ padding: '0.7rem 0.5rem', color: '#c9911a', textAlign: 'left', whiteSpace: 'nowrap' }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
@@ -390,10 +385,13 @@ export default function Dashboard() {
                       <td style={{ padding: '0.7rem 0.5rem' }}>{a.country}</td>
                       <td style={{ padding: '0.7rem 0.5rem' }}>{a.sex}</td>
                       <td style={{ padding: '0.7rem 0.5rem', color: '#7a9e7a', whiteSpace: 'nowrap' }}>{new Date(a.created_at).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.7rem 0.5rem' }}>
+                        <button style={btnRed} onClick={() => deleteApplication(a.id)}>🗑</button>
+                      </td>
                     </tr>
                   ))}
                   {filteredApps.length === 0 && (
-                    <tr><td colSpan={7} style={{ padding: '2rem', color: '#7a9e7a', textAlign: 'center' }}>No results</td></tr>
+                    <tr><td colSpan={8} style={{ padding: '2rem', color: '#7a9e7a', textAlign: 'center' }}>No results</td></tr>
                   )}
                 </tbody>
               </table>
@@ -417,7 +415,7 @@ export default function Dashboard() {
                 </button>
                 {filteredMsgs.length < messages.length && (
                   <button style={btn} onClick={() => copyText(filteredMsgs.map(m => m.email).join(','), 'sel-msg-emails')}>
-                    {copied === 'sel-msg-emails' ? '✓ Copied' : `Copy Selected Emails (${filteredMsgs.length})`}
+                    {copied === 'sel-msg-emails' ? '✓ Copied' : `Copy Selected (${filteredMsgs.length})`}
                   </button>
                 )}
               </div>
@@ -448,9 +446,12 @@ export default function Dashboard() {
               </button>
             </div>
             {newsletters.map(n => (
-              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.7rem 0', borderBottom: '1px solid #0d1f0d', fontSize: '0.9rem' }}>
+              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid #0d1f0d', fontSize: '0.9rem' }}>
                 <span>{n.email}</span>
-                <span style={{ color: '#7a9e7a' }}>{new Date(n.created_at).toLocaleDateString()}</span>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                  <span style={{ color: '#7a9e7a', fontSize: '0.8rem' }}>{new Date(n.created_at).toLocaleDateString()}</span>
+                  <button style={btnRed} onClick={() => deleteNewsletter(n.id)}>🗑 Delete</button>
+                </div>
               </div>
             ))}
             {newsletters.length === 0 && <p style={{ color: '#7a9e7a' }}>No subscribers yet.</p>}
@@ -480,10 +481,12 @@ export default function Dashboard() {
         {/* ══ GALLERY ══ */}
         {tab === 'gallery' && (
           <div>
-            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Photo Gallery</h2>
-            <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1rem' }}>Note: Hero images, logo and portrait uploads are managed under the Content tab.</p>
+            <h2 style={{ color: '#c9911a', marginBottom: '0.3rem' }}>Photo Gallery</h2>
+            <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+              Only photos uploaded here appear in the public gallery. Hero images, logo and portraits are managed under the <strong style={{ color: '#c9911a' }}>Content</strong> tab.
+            </p>
             <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.5rem', marginBottom: '2rem' }}>
-              <p style={{ color: '#7a9e7a', marginBottom: '1rem', fontSize: '0.9rem' }}>Upload new gallery image:</p>
+              <p style={{ color: '#7a9e7a', marginBottom: '1rem', fontSize: '0.9rem' }}>Upload new gallery photo:</p>
               <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} style={{ color: '#c8dcc8', marginBottom: '1rem', display: 'block' }} />
               <button style={btn} onClick={uploadGallery}>Upload to Gallery</button>
               {uploadMsg && <span style={{ color: uploadMsg.startsWith('Failed') ? '#f87171' : '#4ade80', marginLeft: '1rem', fontSize: '0.9rem' }}>{uploadMsg}</span>}
@@ -492,10 +495,10 @@ export default function Dashboard() {
               {gallery.map(img => (
                 <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #1a4a20' }}>
                   <img src={img.image_url} alt="Gallery" style={{ width: '100%', height: '130px', objectFit: 'cover' }} />
-                  <button onClick={() => deleteGallery(img.id)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200,0,0,0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
+                  <button onClick={() => deleteGallery(img.id)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200,0,0,0.9)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 </div>
               ))}
-              {gallery.length === 0 && <p style={{ color: '#7a9e7a' }}>No gallery images yet.</p>}
+              {gallery.length === 0 && <p style={{ color: '#7a9e7a' }}>No gallery photos yet.</p>}
             </div>
           </div>
         )}
@@ -575,10 +578,9 @@ export default function Dashboard() {
         {tab === 'content' && (
           <div>
             <h2 style={{ color: '#c9911a', marginBottom: '0.5rem' }}>Content Management</h2>
-            <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>Edit text content and manage all section images. Click Save after each edit.</p>
+            <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>Edit text content and manage all section images.</p>
             {contentMsg && <p style={{ color: contentMsg.startsWith('Error') ? '#f87171' : '#4ade80', marginBottom: '1rem' }}>{contentMsg}</p>}
 
-            {/* Text content sections */}
             {[
               { key: 'hero', label: 'Hero Tagline' },
               { key: 'about', label: 'About Writeup' },
@@ -599,35 +601,17 @@ export default function Dashboard() {
               </div>
             ))}
 
-            {/* Hero image uploads */}
             <div style={{ borderTop: '1px solid #1a4a20', paddingTop: '1.5rem', marginTop: '1.5rem', marginBottom: '1rem' }}>
               <h3 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Image & Logo Management</h3>
+              <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                These images appear only in their designated sections — they do NOT appear in the photo gallery.
+              </p>
             </div>
 
-            <HeroImageUpload
-              section="logo"
-              label="Foundation Logo"
-              hint="Appears in the Navbar beside the foundation name"
-              uploadFile={uploadFile}
-            />
-            <HeroImageUpload
-              section="main_hero"
-              label="Main Hero Image"
-              hint="Large image on the homepage hero section (right side)"
-              uploadFile={uploadFile}
-            />
-            <HeroImageUpload
-              section="about_hero"
-              label="Founder Portrait (About Section)"
-              hint="Portrait photo of Chief Emeka Agba in the About section"
-              uploadFile={uploadFile}
-            />
-            <HeroImageUpload
-              section="transformation_hero"
-              label="Youth Transformation City Image"
-              hint="Image shown in the Chief Emeka Agba Youth Transformation City section"
-              uploadFile={uploadFile}
-            />
+            <HeroImageUpload section="logo" label="Foundation Logo" hint="Appears in the Navbar beside the foundation name" />
+            <HeroImageUpload section="main_hero" label="Main Hero Image" hint="Large image on the homepage hero section (right side)" />
+            <HeroImageUpload section="about_hero" label="Founder Portrait (About Section)" hint="Portrait photo in the About section — add founder name in Title field" />
+            <HeroImageUpload section="transformation_hero" label="Youth Transformation City Image" hint="Image in the Chief Emeka Agba Youth Transformation City section" />
 
             {contentEdits['youtube_url'] && (
               <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem', marginTop: '1rem' }}>
