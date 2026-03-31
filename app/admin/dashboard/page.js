@@ -12,7 +12,7 @@ function HeroImageUpload({ section, label, hint }) {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    axios.get(`${API}/api/hero-images`)
+    axios.get(`${API}/hero-images`)
       .then(r => {
         const item = r.data.find(h => h.section === section)
         if (item) {
@@ -32,7 +32,7 @@ function HeroImageUpload({ section, label, hint }) {
         fd.append('image', file)
         if (title) fd.append('title', title)
         const res = await axios.post(
-          `${API}/api/hero-images/upload/${section}`,
+          `${API}/hero-images/upload/${section}`,
           fd,
           { headers: { 'x-admin-token': token, 'Content-Type': 'multipart/form-data' } }
         )
@@ -40,7 +40,7 @@ function HeroImageUpload({ section, label, hint }) {
         setCurrentImg(image_url)
       } else {
         await axios.put(
-          `${API}/api/hero-images/${section}`,
+          `${API}/hero-images/${section}`,
           { image_url, title },
           { headers: { 'x-admin-token': token } }
         )
@@ -129,15 +129,15 @@ export default function Dashboard() {
     const h = { 'x-admin-token': t || localStorage.getItem('adminToken') }
     const safe = (p) => p.catch(() => ({ data: [] }))
     const [appsRes, newsRes, donaRes, msgsRes, galRes, progRes, transRes, contentRes, partRes] = await Promise.all([
-      safe(axios.get(`${API}/api/apply`, { headers: h })),
-      safe(axios.get(`${API}/api/newsletter`, { headers: h })),
-      safe(axios.get(`${API}/api/donations`, { headers: h })),
-      safe(axios.get(`${API}/api/contact`, { headers: h })),
-      safe(axios.get(`${API}/api/gallery`)),
-      safe(axios.get(`${API}/api/programs`)),
-      safe(axios.get(`${API}/api/transparency`)),
-      safe(axios.get(`${API}/api/content`)),
-      safe(axios.get(`${API}/api/partners`)),
+      safe(axios.get(`${API}/apply`, { headers: h })),
+      safe(axios.get(`${API}/newsletter`, { headers: h })),
+      safe(axios.get(`${API}/donations`, { headers: h })),
+      safe(axios.get(`${API}/contact`, { headers: h })),
+      safe(axios.get(`${API}/gallery`)),
+      safe(axios.get(`${API}/programs`)),
+      safe(axios.get(`${API}/transparency`)),
+      safe(axios.get(`${API}/content`)),
+      safe(axios.get(`${API}/partners`)),
     ])
     setApplications(appsRes.data || [])
     setFilteredApps(appsRes.data || [])
@@ -200,7 +200,7 @@ export default function Dashboard() {
     const item = content[key]
     if (!item) return
     try {
-      await axios.put(`${API}/api/content/${item.id}`, { content: contentEdits[key] }, { headers: getHeaders() })
+      await axios.put(`${API}/content/${item.id}`, { content: contentEdits[key] }, { headers: getHeaders() })
       setContentMsg(`${key} saved!`); setTimeout(() => setContentMsg(''), 3000)
     } catch (err) {
       setContentMsg('Error: ' + (err.response?.data?.error || err.message))
@@ -209,7 +209,7 @@ export default function Dashboard() {
 
   const saveStats = async () => {
     try {
-      await axios.put(`${API}/api/transparency/stats`, stats, { headers: getHeaders() })
+      await axios.put(`${API}/transparency/stats`, stats, { headers: getHeaders() })
       setStatsMsg('Stats saved!'); setTimeout(() => setStatsMsg(''), 3000)
     } catch (err) {
       setStatsMsg('Error: ' + (err.response?.data?.error || err.message))
@@ -219,7 +219,7 @@ export default function Dashboard() {
   const uploadFile = async (file) => {
     const fd = new FormData()
     fd.append('image', file)
-    const res = await axios.post(`${API}/api/gallery/upload`, fd, {
+    const res = await axios.post(`${API}/gallery/upload`, fd, {
       headers: { 'x-admin-token': localStorage.getItem('adminToken'), 'Content-Type': 'multipart/form-data' }
     })
     return res.data.image_url
@@ -229,7 +229,7 @@ export default function Dashboard() {
     if (!imageFile) return
     try {
       await uploadFile(imageFile)
-      const res = await axios.get(`${API}/api/gallery`)
+      const res = await axios.get(`${API}/gallery`)
       setGallery(res.data)
       setUploadMsg('Uploaded!'); setTimeout(() => setUploadMsg(''), 3000)
     } catch (err) {
@@ -239,14 +239,14 @@ export default function Dashboard() {
 
   const deleteGallery = async (id) => {
     try {
-      await axios.delete(`${API}/api/gallery/${id}`, { headers: getHeaders() })
+      await axios.delete(`${API}/gallery/${id}`, { headers: getHeaders() })
       setGallery(gallery.filter(g => g.id !== id))
     } catch (err) { console.error(err) }
   }
 
   const deleteNewsletter = async (id) => {
     try {
-      await axios.delete(`${API}/api/newsletter/${id}`, { headers: getHeaders() })
+      await axios.delete(`${API}/newsletter/${id}`, { headers: getHeaders() })
       setNewsletters(newsletters.filter(n => n.id !== id))
     } catch (err) { console.error(err) }
   }
@@ -254,7 +254,7 @@ export default function Dashboard() {
   const deleteApplication = async (id) => {
     if (!confirm('Delete this application? This cannot be undone.')) return
     try {
-      await axios.delete(`${API}/api/apply/${id}`, { headers: getHeaders() })
+      await axios.delete(`${API}/apply/${id}`, { headers: getHeaders() })
       setApplications(applications.filter(a => a.id !== id))
       setFilteredApps(filteredApps.filter(a => a.id !== id))
     } catch (err) { console.error(err) }
@@ -265,11 +265,11 @@ export default function Dashboard() {
       let image_url = editingProgram?.image_url || ''
       if (programFile) image_url = await uploadFile(programFile)
       if (editingProgram) {
-        await axios.put(`${API}/api/programs/${editingProgram.id}`, { ...programForm, image_url }, { headers: getHeaders() })
+        await axios.put(`${API}/programs/${editingProgram.id}`, { ...programForm, image_url }, { headers: getHeaders() })
       } else {
-        await axios.post(`${API}/api/programs`, { ...programForm, image_url }, { headers: getHeaders() })
+        await axios.post(`${API}/programs`, { ...programForm, image_url }, { headers: getHeaders() })
       }
-      const res = await axios.get(`${API}/api/programs`)
+      const res = await axios.get(`${API}/programs`)
       setPrograms(res.data)
       setProgramForm({ name: '', description: '' }); setProgramFile(null); setEditingProgram(null)
       setProgramMsg('Saved!'); setTimeout(() => setProgramMsg(''), 3000)
@@ -279,7 +279,7 @@ export default function Dashboard() {
   const deleteProgram = async (id) => {
     if (!confirm('Delete this program?')) return
     try {
-      await axios.delete(`${API}/api/programs/${id}`, { headers: getHeaders() })
+      await axios.delete(`${API}/programs/${id}`, { headers: getHeaders() })
       setPrograms(programs.filter(p => p.id !== id))
     } catch (err) { console.error(err) }
   }
@@ -288,8 +288,8 @@ export default function Dashboard() {
     try {
       let logo_url = ''
       if (partnerFile) logo_url = await uploadFile(partnerFile)
-      await axios.post(`${API}/api/partners`, { ...partnerForm, logo_url }, { headers: getHeaders() })
-      const res = await axios.get(`${API}/api/partners`)
+      await axios.post(`${API}/partners`, { ...partnerForm, logo_url }, { headers: getHeaders() })
+      const res = await axios.get(`${API}/partners`)
       setPartners(res.data)
       setPartnerForm({ name: '', website: '', type: 'partner' }); setPartnerFile(null)
       setPartnerMsg('Partner added!'); setTimeout(() => setPartnerMsg(''), 3000)
@@ -298,7 +298,7 @@ export default function Dashboard() {
 
   const deletePartner = async (id) => {
     try {
-      await axios.delete(`${API}/api/partners/${id}`, { headers: getHeaders() })
+      await axios.delete(`${API}/partners/${id}`, { headers: getHeaders() })
       setPartners(partners.filter(p => p.id !== id))
     } catch (err) { console.error(err) }
   }
