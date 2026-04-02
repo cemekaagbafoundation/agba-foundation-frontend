@@ -196,17 +196,37 @@ export default function Dashboard() {
     setCopied(label); setTimeout(() => setCopied(''), 2000)
   }
 
-  const saveContent = async (key) => {
-    const item = content[key]
-    if (!item) return
+const saveContent = async (key) => {
     try {
-      await axios.put(`${API}/api/content/${item.id}`, { content: contentEdits[key] }, { headers: getHeaders() })
-      setContentMsg(`${key} saved!`); setTimeout(() => setContentMsg(''), 3000)
+      const item = content[key]
+      if (item?.id) {
+        // Update existing
+        await axios.put(
+          `${API}/api/content/${item.id}`,
+          { content: contentEdits[key] },
+          { headers: getHeaders() }
+        )
+      } else {
+        // Content row doesn't exist yet — create it via backend
+        await axios.post(
+          `${API}/api/content`,
+          { section_name: key, content: contentEdits[key] },
+          { headers: getHeaders() }
+        )
+        // Reload content map after creating
+        const res = await axios.get(`${API}/api/content`)
+        if (Array.isArray(res.data)) {
+          const map = {}
+          res.data.forEach(c => { map[c.section_name] = { id: c.id, value: c.content } })
+          setContent(map)
+        }
+      }
+      setContentMsg(`✓ ${key.replace(/_/g, ' ')} saved successfully!`)
+      setTimeout(() => setContentMsg(''), 4000)
     } catch (err) {
-      setContentMsg('Error: ' + (err.response?.data?.error || err.message))
+      setContentMsg('Error saving: ' + (err.response?.data?.error || err.message))
     }
   }
-
   const saveStats = async () => {
     try {
       await axios.put(`${API}/api/transparency/stats`, stats, { headers: getHeaders() })

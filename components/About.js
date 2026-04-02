@@ -4,12 +4,19 @@ import axios from 'axios'
 
 export default function About() {
   const [aboutHero, setAboutHero] = useState({ image_url: '', title: 'Chief Emeka Agba' })
+  const [writeup, setWriteup] = useState('')
 
   useEffect(() => {
     axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
       .then(r => {
         const about = r.data.find(h => h.section === 'about_hero')
         if (about) setAboutHero(about)
+      }).catch(() => {})
+
+    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
+      .then(r => {
+        const item = r.data.find(c => c.section_name === 'about')
+        if (item) setWriteup(item.content)
       }).catch(() => {})
   }, [])
 
@@ -21,11 +28,8 @@ export default function About() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
           <div>
-            <p style={{ color: '#c8dcc8', lineHeight: 1.9, fontSize: '1rem', marginBottom: '1.2rem' }}>
-              The Chief Emeka Agba Foundation is dedicated to youth empowerment across Nigeria. We provide free digital skills training, entrepreneurship education, and agricultural programs to equip young Nigerians with the tools they need to build sustainable livelihoods.
-            </p>
-            <p style={{ color: '#7a9e7a', lineHeight: 1.9, fontSize: '0.95rem' }}>
-              Through our Street to Skill Initiative, we reach the most vulnerable young people, giving them access to world-class training, mentorship networks, and job placement support regardless of background.
+            <p style={{ color: '#c8dcc8', lineHeight: 1.9, fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
+              {writeup || 'The Chief Emeka Agba Foundation is dedicated to youth empowerment across Nigeria. We provide free digital skills training, entrepreneurship education, and agricultural programs.'}
             </p>
           </div>
 
@@ -43,7 +47,9 @@ export default function About() {
               <div style={{ color: '#f0f0f0', fontWeight: 'bold', fontSize: '1rem' }}>
                 {aboutHero.title || 'Chief Emeka Agba'}
               </div>
-              <div style={{ color: '#c9911a', fontSize: '0.85rem', marginTop: '0.2rem' }}>Founder — Chief Emeka Agba Foundation</div>
+              <div style={{ color: '#c9911a', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Founder — Chief Emeka Agba Foundation
+              </div>
             </div>
           </div>
         </div>
