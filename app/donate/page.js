@@ -41,17 +41,17 @@ export default function Donate() {
 
     setLoading(true)
 
-    // Save pending donation first
+    // Save pending donation directly
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/donations/initiate-payment`, {
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/save-donation`, {
         name: form.name,
         email: form.email,
         amount: Number(form.amount),
         reference,
-        gateway: 'firstchekout'
+        currency: form.currency
       })
     } catch (e) {
-      console.log('Pre-save failed, continuing...')
+      console.log('Pre-save skipped, webhook will handle it')
     }
 
     // Dynamically import to avoid SSR issues
