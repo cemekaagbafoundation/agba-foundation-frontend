@@ -54,8 +54,19 @@ export default function Donate() {
       console.log('Pre-save skipped, webhook will handle it')
     }
 
-    // Dynamically import to avoid SSR issues
-    const FirstChekout = (await import('firstchekout')).default
+    // Load FirstChekout via script tag
+    if (!window.FirstChekout) {
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[src*="firstchekout"]')
+        if (existing) { resolve(); return; }
+        const script = document.createElement('script')
+        script.src = 'https://www.firstchekoutdev.com/inline.js'
+        script.onload = resolve
+        script.onerror = () => reject(new Error('Failed to load FirstChekout script'))
+        document.head.appendChild(script)
+      })
+    }
+    const FirstChekout = window.FirstChekout
 
     const txn = {
       live: isLive,
