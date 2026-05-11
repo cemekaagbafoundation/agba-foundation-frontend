@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import axios from 'axios'
 import Navbar from '../../components/Navbar'
 import Link from 'next/link'
@@ -20,60 +20,11 @@ export default function Donate() {
   const [msgType, setMsgType] = useState('success')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState('')
-  const [sdkReady, setSdkReady] = useState(false)
-
-  // Load FirstChekout SDK on mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // Check if already loaded
-    if (window.FBNCheckout || window.FirstChekout) {
-      setSdkReady(true)
-      return
-    }
-
-    const loadScript = (src) => new Promise((resolve, reject) => {
-      const existing = document.querySelector(`script[src="${src}"]`)
-      if (existing) { resolve(); return }
-      const script = document.createElement('script')
-      script.src = src
-      script.async = true
-      script.onload = () => { console.log('Script loaded:', src); resolve() }
-      script.onerror = () => reject(new Error('Failed: ' + src))
-      document.body.appendChild(script)
-    })
-
-    // Try multiple possible CDN URLs
-    const tryUrls = [
-      'https://www.firstchekoutdev.com/assets/index-D01E61dt.js',
-      'https://firstchekout.com/assets/inline.js',
-      'https://www.firstchekout.com/inline.js',
-    ]
-
-    const tryLoad = async () => {
-      for (const url of tryUrls) {
-        try {
-          await loadScript(url)
-          if (window.FBNCheckout || window.FirstChekout || window.initiateTransaction) {
-            setSdkReady(true)
-            console.log('FirstChekout SDK loaded from:', url)
-            return
-          }
-        } catch (e) {
-          console.log('Failed:', url, e.message)
-        }
-      }
-      // SDK not loaded via CDN — will use API redirect fallback
-      console.log('SDK CDN unavailable — will use API redirect')
-      setSdkReady(false)
-    }
-
-    tryLoad()
-  }, [])
 
   const copyAcct = (acct, label) => {
     navigator.clipboard.writeText(acct)
-    setCopied(label); setTimeout(() => setCopied(''), 2000)
+    setCopied(label)
+    setTimeout(() => setCopied(''), 2000)
   }
 
   const generateRef = () =>
@@ -81,109 +32,51 @@ export default function Donate() {
 
   const payWithFirstChekout = async () => {
     if (!form.email || !form.amount) {
-      setMsg('Please enter your email and amount.'); setMsgType('error'); return
+      setMsg('Please enter your email and amount.')
+      setMsgType('error')
+      return
     }
-
-    const nameParts = (form.name || 'Anonymous Donor').split(' ')
     const reference = generateRef()
     setLoading(true)
     setMsg('')
-
-    // Save pending donation
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/save-donation`, {
-        name: form.name, email: form.email,
-        amount: Number(form.amount), reference, currency: form.currency
-      })
-    } catch (e) {
-      console.log('Pre-save skipped')
-    }
-
-    // Try inline SDK first
-    const SDK = window.FBNCheckout || window.FirstChekout
-
-    if (SDK) {
-      const txn = {
-        live: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_LIVE === 'true',
-        ref: reference,
-        amount: Number(form.amount),
-        customer: {
-          firstname: nameParts[0],
-          lastname: nameParts.slice(1).join(' ') || 'Donor',
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/initiate-payment`,
+        {
+          name: form.name,
           email: form.email,
-          id: form.email,
-        },
-        meta: { foundation: 'Chief Emeka Agba Foundation' },
-        publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
-        description: 'Donation to Chief Emeka Agba Foundation',
-        currency: form.currency,
-        options: ['CARD', 'QR', 'USSD', 'BANK_TRANSFER'],
-        callback: async (response) => {
-          console.log('Payment response:', response)
-          setLoading(false)
-          const isSuccess = response?.status === 'successful'
-            || response?.status === 'SUCCESS'
-            || response?.success === true
-          if (isSuccess) {
-            setMsg(`✅ Thank you! Donation of ₦${Number(form.amount).toLocaleString()} received.`)
-            setMsgType('success')
-            setForm({ name: '', email: '', amount: '', currency: 'NGN' })
-          } else {
-            setMsg('Payment was not completed. Please try again.')
-            setMsgType('error')
-          }
-        },
-        onClose: () => {
-          setLoading(false)
-          console.log('Payment closed')
+          amount: Number(form.amount),
+          currency: form.currency,
+          reference,
         }
-      }
-
-      try {
-        if (typeof SDK.initiateTransactionAsync === 'function') {
-          await SDK.initiateTransactionAsync(txn)
-        } else if (typeof SDK.initiateTransaction === 'function') {
-          SDK.initiateTransaction(txn)
-        } else if (typeof SDK === 'function') {
-          SDK(txn)
-        } else {
-          throw new Error('No valid method found on SDK')
-        }
-      } catch (err) {
-        console.error('SDK call failed:', err)
+      )
+      const url = res.data.payment_url
+      if (url) {
+        window.location.href = url
+      } else {
         setLoading(false)
-        setMsg('Payment popup failed: ' + err.message); setMsgType('error')
-      }
-
-    } else {
-      // Fallback — redirect to FirstChekout payment page
-      console.log('Using API redirect fallback')
-      try {
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/initiate-payment`,
-          { name: form.name, email: form.email, amount: Number(form.amount), currency: form.currency, reference }
-        )
-        const url = res.data.payment_url || res.data.redirectUrl || res.data.paymentUrl
-        if (url) {
-          window.location.href = url
-        } else {
-          setLoading(false)
-          setMsg('Could not get payment URL. Please use bank transfer below.')
-          setMsgType('error')
-        }
-      } catch (err) {
-        setLoading(false)
-        setMsg('Payment initiation failed. Please use bank transfer below.')
+        setMsg('Could not get payment URL. Please use bank transfer below.')
         setMsgType('error')
       }
+    } catch (err) {
+      setLoading(false)
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.details?.message ||
+        'Payment initiation failed.'
+      setMsg(errMsg + ' Please use bank transfer below.')
+      setMsgType('error')
     }
   }
 
   const payWithPaystack = async () => {
     if (!form.email || !form.amount) {
-      setMsg('Please enter your email and amount.'); setMsgType('error'); return
+      setMsg('Please enter your email and amount.')
+      setMsgType('error')
+      return
     }
-    setLoading(true); setMsg('')
+    setLoading(true)
+    setMsg('')
     try {
       const res = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/donations/initiate-payment`,
@@ -191,7 +84,8 @@ export default function Donate() {
       )
       window.location.href = res.data.authorization_url
     } catch (err) {
-      setMsg(err.response?.data?.error || 'Error initiating payment.'); setMsgType('error')
+      setMsg(err.response?.data?.error || 'Error initiating payment.')
+      setMsgType('error')
       setLoading(false)
     }
   }
@@ -283,7 +177,7 @@ export default function Donate() {
             )}
 
             <p style={{ color: '#3a5a3a', fontSize: '0.78rem', textAlign: 'center', marginTop: '1rem' }}>
-              🔒 Secured by First Bank of Nigeria · {sdkReady ? '✅ SDK Ready' : '⏳ Loading SDK...'}
+              🔒 Secured by First Bank of Nigeria
             </p>
           </div>
 
@@ -298,8 +192,8 @@ export default function Donate() {
             </p>
 
             {[
-              { label: 'ACCOUNT NAME', value: 'Chief Emeka Agba Foundation', copy: false },
-              { label: 'BANK NAME', value: 'First Bank of Nigeria PLC', copy: false },
+              { label: 'ACCOUNT NAME', value: 'Chief Emeka Agba Foundation' },
+              { label: 'BANK NAME', value: 'First Bank of Nigeria PLC' },
             ].map(item => (
               <div key={item.label} style={{ padding: '1rem', background: '#091509', borderRadius: '8px', border: '1px solid #1a4a20', marginBottom: '0.8rem' }}>
                 <div style={{ color: '#c9911a', fontSize: '0.78rem', marginBottom: '0.2rem' }}>{item.label}</div>
