@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import axios from 'axios'
 import Navbar from '../../components/Navbar'
 import Link from 'next/link'
@@ -12,6 +13,9 @@ const BANK_DETAILS = [
   { currency: 'GBP', account: '2035990725' },
   { currency: 'Euro', account: '2035990897' },
 ]
+
+const generateRef = () =>
+  `CEA_${Date.now()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`
 
 export default function Donate() {
   const [gateway, setGateway] = useState('firstchekout')
@@ -27,44 +31,107 @@ export default function Donate() {
     setTimeout(() => setCopied(''), 2000)
   }
 
-  const generateRef = () =>
-    `CEA_${Date.now()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`
-
   const payWithFirstChekout = async () => {
     if (!form.email || !form.amount) {
       setMsg('Please enter your email and amount.')
       setMsgType('error')
       return
     }
+
     const reference = generateRef()
+    const nameParts = (form.name || 'Anonymous Donor').trim().split(' ')
     setLoading(true)
     setMsg('')
+
+    // 1. Save pending donation to backend first
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/initiate-payment`,
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/save-donation`,
         {
-          name: form.name,
+          name: form.name || 'Anonymous',
           email: form.email,
           amount: Number(form.amount),
-          currency: form.currency,
           reference,
+          currency: form.currency,
         }
       )
-      const url = res.data.payment_url
-      if (url) {
-        window.location.href = url
-      } else {
+    } catch (e) {
+      console.warn('Pre-save failed (non-blocking):', e.message)
+    }
+
+    // 2. Dynamically import FBNCheckout (browser only, avoids SSR crash)
+    let FBNCheckout
+    try {
+      const mod = await import('firstchekout')
+      FBNCheckout = mod.default || mod
+    } catch (e) {
+      setLoading(false)
+      setMsg('Payment SDK failed to load. Please use bank transfer below.')
+      setMsgType('error')
+      return
+    }
+
+    // 3. Build transaction object exactly as per npm docs
+    const txn = {
+      live: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_LIVE === 'true',
+      ref: reference,
+      amount: Number(form.amount),
+      customer: {
+        firstname: nameParts[0],
+        lastname: nameParts.slice(1).join(' ') || 'Donor',
+        email: form.email,
+        id: form.email,
+      },
+      fees: [],
+      meta: { foundation: 'Chief Emeka Agba Foundation' },
+      publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
+      description: 'Donation to Chief Emeka Agba Foundation',
+      currency: form.currency,
+      options: ['CARD', 'QR', 'USSD', 'BANK_TRANSFER'],
+      callback: async (response) => {
+        console.log('FirstChekout callback response:', response)
         setLoading(false)
-        setMsg('Could not get payment URL. Please use bank transfer below.')
-        setMsgType('error')
+        const isSuccess =
+          response?.status === 'successful' ||
+          response?.status === 'SUCCESS' ||
+          response?.status === 'success' ||
+          response?.success === true ||
+          response?.transactionStatus === 'SUCCESS'
+        if (isSuccess) {
+          setMsg(`✅ Thank you! Your donation of ₦${Number(form.amount).toLocaleString()} has been received.`)
+          setMsgType('success')
+          setForm({ name: '', email: '', amount: '', currency: 'NGN' })
+        } else {
+          setMsg('Payment was not completed. Please try again or use bank transfer below.')
+          setMsgType('error')
+        }
+      },
+      onClose: () => {
+        setLoading(false)
+        console.log('FirstChekout popup closed')
+      },
+    }
+
+    // 4. addressUrl — sandbox frame URLs per npm package docs
+    const addressUrl = {
+      BaseFrame: 'https://www.firstchekoutdev.com',
+      InitiatePaymentURI: 'https://www.firstchekoutdev.com/api/v1/payments/initiate',
+    }
+
+    // 5. Launch the popup
+    try {
+      if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
+        await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
+      } else if (typeof FBNCheckout.initiateTransaction === 'function') {
+        FBNCheckout.initiateTransaction(txn)
+        setLoading(false)
+      } else {
+        throw new Error('No valid method found on FBNCheckout')
       }
     } catch (err) {
+      console.error('FBNCheckout error:', err)
       setLoading(false)
-      const errMsg =
-        err.response?.data?.error ||
-        err.response?.data?.details?.message ||
-        'Payment initiation failed.'
-      setMsg(errMsg + ' Please use bank transfer below.')
+      setMsg('Payment popup failed: ' + err.message + '. Please use bank transfer below.')
       setMsgType('error')
     }
   }
@@ -91,10 +158,15 @@ export default function Donate() {
   }
 
   const inp = {
-    padding: '0.9rem 1rem', borderRadius: '8px',
-    border: '1px solid #1a4a20', background: '#0d1f0d',
-    color: '#fff', width: '100%', fontSize: '1rem',
-    marginBottom: '1rem', outline: 'none',
+    padding: '0.9rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid #1a4a20',
+    background: '#0d1f0d',
+    color: '#fff',
+    width: '100%',
+    fontSize: '1rem',
+    marginBottom: '1rem',
+    outline: 'none',
   }
 
   return (
@@ -161,7 +233,11 @@ export default function Donate() {
                 color: '#061209', fontWeight: 'bold',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
               }}>
-              {loading ? 'Processing...' : gateway === 'firstchekout' ? '🏦 Pay with FirstChekout' : '💳 Pay with Paystack'}
+              {loading
+                ? 'Processing...'
+                : gateway === 'firstchekout'
+                  ? '🏦 Pay with FirstChekout'
+                  : '💳 Pay with Paystack'}
             </button>
 
             {msg && (
@@ -181,7 +257,7 @@ export default function Donate() {
             </p>
           </div>
 
-          {/* Bank Transfer */}
+          {/* Bank Transfer Section */}
           <div style={{ background: '#0d1f0d', padding: '2.5rem', borderRadius: '14px', border: '1px solid #1a4a20' }}>
             <h2 style={{ color: '#c9911a', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Bank Transfer</h2>
             <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -223,6 +299,7 @@ export default function Donate() {
               <div style={{ color: '#fff', fontWeight: 'bold', letterSpacing: '2px' }}>FBNINGLA</div>
             </div>
           </div>
+
         </div>
       </section>
     </>
