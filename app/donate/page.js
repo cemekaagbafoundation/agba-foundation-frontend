@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
 import axios from 'axios'
 import Navbar from '../../components/Navbar'
 import Link from 'next/link'
@@ -37,101 +36,35 @@ export default function Donate() {
       setMsgType('error')
       return
     }
-
     const reference = generateRef()
-    const nameParts = (form.name || 'Anonymous Donor').trim().split(' ')
     setLoading(true)
     setMsg('')
-
-    // 1. Save pending donation to backend first
     try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/save-donation`,
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/firstbank/initiate-payment`,
         {
           name: form.name || 'Anonymous',
           email: form.email,
           amount: Number(form.amount),
-          reference,
           currency: form.currency,
+          reference,
         }
       )
-    } catch (e) {
-      console.warn('Pre-save failed (non-blocking):', e.message)
-    }
-
-    // 2. Dynamically import FBNCheckout (browser only, avoids SSR crash)
-    let FBNCheckout
-    try {
-      const mod = await import('firstchekout')
-      FBNCheckout = mod.default || mod
-    } catch (e) {
-      setLoading(false)
-      setMsg('Payment SDK failed to load. Please use bank transfer below.')
-      setMsgType('error')
-      return
-    }
-
-    // 3. Build transaction object exactly as per npm docs
-    const txn = {
-      live: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_LIVE === 'true',
-      ref: reference,
-      amount: Number(form.amount),
-      customer: {
-        firstname: nameParts[0],
-        lastname: nameParts.slice(1).join(' ') || 'Donor',
-        email: form.email,
-        id: form.email,
-      },
-      fees: [],
-      meta: { foundation: 'Chief Emeka Agba Foundation' },
-      publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
-      description: 'Donation to Chief Emeka Agba Foundation',
-      currency: form.currency,
-      options: ['CARD', 'QR', 'PAYATTITUE', 'WALLET', 'ACCOUNT'],
-      callback: async (response) => {
-        console.log('FirstChekout callback response:', response)
-        setLoading(false)
-        const isSuccess =
-          response?.status === 'successful' ||
-          response?.status === 'SUCCESS' ||
-          response?.status === 'success' ||
-          response?.success === true ||
-          response?.transactionStatus === 'SUCCESS'
-        if (isSuccess) {
-          setMsg(`✅ Thank you! Your donation of ₦${Number(form.amount).toLocaleString()} has been received.`)
-          setMsgType('success')
-          setForm({ name: '', email: '', amount: '', currency: 'NGN' })
-        } else {
-          setMsg('Payment was not completed. Please try again or use bank transfer below.')
-          setMsgType('error')
-        }
-      },
-      onClose: () => {
-        setLoading(false)
-        console.log('FirstChekout popup closed')
-      },
-    }
-
-    // 4. addressUrl — sandbox frame URLs per npm package docs
-    const addressUrl = {
-      BaseFrame: 'https://www.firstchekoutdev.com',
-      InitiatePaymentURI: 'https://www.firstchekoutdev.com/api/v1/payments/initiate',
-    }
-
-    // 5. Launch the popup
-    try {
-      if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
-        await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
-      } else if (typeof FBNCheckout.initiateTransaction === 'function') {
-        FBNCheckout.initiateTransaction(txn)
-        setLoading(false)
+      const url = res.data.payment_url
+      if (url) {
+        window.location.href = url
       } else {
-        throw new Error('No valid method found on FBNCheckout')
+        setLoading(false)
+        setMsg('Could not get payment URL. Please use bank transfer below.')
+        setMsgType('error')
       }
     } catch (err) {
-      console.error('FBNCheckout error:', err)
       setLoading(false)
-      setMsg('Payment popup failed: ' + err.message + '. Please use bank transfer below.')
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Payment initiation failed.'
+      setMsg(errMsg + ' Please use bank transfer below.')
       setMsgType('error')
     }
   }
@@ -158,15 +91,10 @@ export default function Donate() {
   }
 
   const inp = {
-    padding: '0.9rem 1rem',
-    borderRadius: '8px',
-    border: '1px solid #1a4a20',
-    background: '#0d1f0d',
-    color: '#fff',
-    width: '100%',
-    fontSize: '1rem',
-    marginBottom: '1rem',
-    outline: 'none',
+    padding: '0.9rem 1rem', borderRadius: '8px',
+    border: '1px solid #1a4a20', background: '#0d1f0d',
+    color: '#fff', width: '100%', fontSize: '1rem',
+    marginBottom: '1rem', outline: 'none',
   }
 
   return (
@@ -233,11 +161,7 @@ export default function Donate() {
                 color: '#061209', fontWeight: 'bold',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
               }}>
-              {loading
-                ? 'Processing...'
-                : gateway === 'firstchekout'
-                  ? '🏦 Pay with FirstChekout'
-                  : '💳 Pay with Paystack'}
+              {loading ? 'Processing...' : gateway === 'firstchekout' ? '🏦 Pay with FirstChekout' : '💳 Pay with Paystack'}
             </button>
 
             {msg && (
@@ -257,7 +181,6 @@ export default function Donate() {
             </p>
           </div>
 
-          {/* Bank Transfer Section */}
           <div style={{ background: '#0d1f0d', padding: '2.5rem', borderRadius: '14px', border: '1px solid #1a4a20' }}>
             <h2 style={{ color: '#c9911a', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Bank Transfer</h2>
             <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>
