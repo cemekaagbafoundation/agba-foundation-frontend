@@ -17,7 +17,6 @@ const generateRef = () =>
   'CEA_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8).toUpperCase()
 
 export default function Donate() {
-  const [gateway, setGateway] = useState('firstchekout')
   const [form, setForm] = useState({ name: '', email: '', amount: '', currency: 'NGN' })
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState('success')
@@ -63,7 +62,7 @@ export default function Donate() {
     try {
       const mod = await import('firstchekout')
       FBNCheckout = mod.default || mod
-      console.log('FBNCheckout loaded, methods:', Object.keys(FBNCheckout))
+      console.log('FBNCheckout loaded, keys:', Object.keys(FBNCheckout))
     } catch (e) {
       setLoading(false)
       setMsg('Payment SDK failed to load. Please use bank transfer below.')
@@ -71,6 +70,7 @@ export default function Donate() {
       return
     }
 
+    // Transaction object — matches sample payload structure exactly
     const txn = {
       live: false,
       ref: reference,
@@ -82,27 +82,24 @@ export default function Donate() {
         id: form.email,
       },
       fees: [],
+      paymentAlias: '',
       meta: { foundation: 'Chief Emeka Agba Foundation' },
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
       description: 'Donation to Chief Emeka Agba Foundation',
       currency: form.currency,
-      options: ['CARD', 'QR', 'PAYATTITUE', 'WALLET', 'ACCOUNT'],
+      options: ['CARD', 'QR', 'WALLET', 'PAYATTITUE'],
       callback: async (response) => {
         console.log('FirstChekout callback:', JSON.stringify(response))
         setLoading(false)
-        const status = response && (response.status || response.transactionStatus || '')
+        const status = (response && (response.status || response.transactionStatus || '')).toString()
         const isSuccess =
-          status === 'successful' ||
-          status === 'SUCCESS' ||
-          status === 'success' ||
-          status === 'SUCCESSFUL' ||
-          status === '00' ||
-          response.success === true
+          status === 'successful' || status === 'SUCCESS' ||
+          status === 'success' || status === 'SUCCESSFUL' ||
+          status === '00' || response.success === true
         if (isSuccess) {
-          setMsg('Thank you! Your donation of N' + Number(form.amount).toLocaleString() + ' has been received.')
+          setMsg('Thank you! Your donation of ₦' + Number(form.amount).toLocaleString() + ' has been received.')
           setMsgType('success')
           setForm({ name: '', email: '', amount: '', currency: 'NGN' })
-          // Update donation status on backend
           try {
             await axios.post(
               process.env.NEXT_PUBLIC_API_URL + '/api/firstbank/verify-payment',
@@ -122,15 +119,14 @@ export default function Donate() {
       },
     }
 
-    // These are the iframe frame URLs — NOT a fetch endpoint
-    // BaseFrame loads the iframe, InitiatePaymentURI is the internal route inside the frame
+    // ✅ Correct URLs from First Bank documentation
     const addressUrl = {
-      BaseFrame: 'https://www.firstchekoutdev.com',
-      InitiatePaymentURI: 'https://www.firstchekoutdev.com/initiateTransaction',
+      BaseFrame: 'https://paymentcheckoutui-qa.azurewebsites.net',
+      InitiatePaymentURI: 'https://payment-checkout-dev.azurewebsites.net/api/v2/transactions/initiate',
     }
 
     console.log('Launching FirstChekout popup...')
-    console.log('txn ref:', reference, '| amount:', form.amount)
+    console.log('Ref:', reference, '| Amount:', form.amount, '| Email:', form.email)
 
     try {
       if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
@@ -149,27 +145,6 @@ export default function Donate() {
     }
   }
 
-  const payWithPaystack = async () => {
-    if (!form.email || !form.amount) {
-      setMsg('Please enter your email and amount.')
-      setMsgType('error')
-      return
-    }
-    setLoading(true)
-    setMsg('')
-    try {
-      const res = await axios.post(
-        process.env.NEXT_PUBLIC_API_URL + '/api/donations/initiate-payment',
-        { name: form.name, email: form.email, amount: Number(form.amount) }
-      )
-      window.location.href = res.data.authorization_url
-    } catch (err) {
-      setMsg(err.response && err.response.data && err.response.data.error || 'Error initiating payment.')
-      setMsgType('error')
-      setLoading(false)
-    }
-  }
-
   const inp = {
     padding: '0.9rem 1rem', borderRadius: '8px',
     border: '1px solid #1a4a20', background: '#0d1f0d',
@@ -183,7 +158,7 @@ export default function Donate() {
       <section style={{ minHeight: '100vh', background: '#091509', padding: '3rem 1.5rem' }}>
         <div style={{ maxWidth: '560px', margin: '0 auto' }}>
           <Link href="/" style={{ color: '#c9911a', fontSize: '0.9rem', display: 'inline-block', marginBottom: '1.5rem' }}>
-            Back to Home
+            ← Back to Home
           </Link>
 
           <div style={{ background: '#0d1f0d', padding: '2.5rem', borderRadius: '14px', border: '1px solid #1a4a20', marginBottom: '2rem' }}>
@@ -192,26 +167,7 @@ export default function Donate() {
               Your contribution empowers Nigerian youths with skills and opportunity.
             </p>
 
-            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Select payment method:</p>
-            <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '1.5rem' }}>
-              {[
-                { id: 'firstchekout', label: 'FirstChekout', sub: 'First Bank Gateway' },
-                { id: 'paystack', label: 'Paystack', sub: 'Cards & Bank Transfer' },
-              ].map(g => (
-                <button key={g.id} onClick={() => setGateway(g.id)} style={{
-                  flex: 1, padding: '0.9rem', borderRadius: '8px', cursor: 'pointer',
-                  border: gateway === g.id ? '2px solid #c9911a' : '1px solid #1a4a20',
-                  background: gateway === g.id ? 'rgba(201,145,26,0.1)' : 'transparent',
-                  color: gateway === g.id ? '#c9911a' : '#7a9e7a',
-                  textAlign: 'left',
-                }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{g.label}</div>
-                  <div style={{ fontSize: '0.75rem', marginTop: '0.2rem', opacity: 0.8 }}>{g.sub}</div>
-                </button>
-              ))}
-            </div>
-
-            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Quick amounts (N):</p>
+            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Quick amounts (₦):</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.2rem' }}>
               {AMOUNTS.map(a => (
                 <button key={a} onClick={() => setForm({ ...form, amount: a })} style={{
@@ -220,7 +176,7 @@ export default function Donate() {
                   border: '1px solid #c9911a', borderRadius: '6px',
                   padding: '0.4rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
                 }}>
-                  N{a.toLocaleString()}
+                  ₦{a.toLocaleString()}
                 </button>
               ))}
             </div>
@@ -233,7 +189,7 @@ export default function Donate() {
               onChange={e => setForm({ ...form, amount: e.target.value })} />
 
             <button
-              onClick={gateway === 'firstchekout' ? payWithFirstChekout : payWithPaystack}
+              onClick={payWithFirstChekout}
               disabled={loading}
               style={{
                 width: '100%', padding: '1rem', border: 'none', borderRadius: '8px',
@@ -241,7 +197,7 @@ export default function Donate() {
                 color: '#061209', fontWeight: 'bold',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
               }}>
-              {loading ? 'Processing...' : gateway === 'firstchekout' ? 'Pay with FirstChekout' : 'Pay with Paystack'}
+              {loading ? 'Processing...' : '🏦 Pay with FirstChekout'}
             </button>
 
             {msg && (
@@ -257,7 +213,7 @@ export default function Donate() {
             )}
 
             <p style={{ color: '#3a5a3a', fontSize: '0.78rem', textAlign: 'center', marginTop: '1rem' }}>
-              Secured by First Bank of Nigeria
+              🔒 Secured by First Bank of Nigeria
             </p>
           </div>
 
@@ -292,13 +248,13 @@ export default function Donate() {
                   border: '1px solid #c9911a', borderRadius: '6px',
                   padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.8rem',
                 }}>
-                  {copied === b.currency ? 'Copied' : 'Copy'}
+                  {copied === b.currency ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
             ))}
 
             <div style={{ padding: '1rem', background: '#091509', borderRadius: '8px', border: '1px solid #1a4a20' }}>
-              <div style={{ color: '#c9911a', fontSize: '0.78rem', marginBottom: '0.2rem' }}>SWIFT CODE</div>
+              <div style={{ color: '#c9911a', fontSize: '0.78rem', marginBottom: '0.2rem' }}>SWIFT CODE (International)</div>
               <div style={{ color: '#fff', fontWeight: 'bold', letterSpacing: '2px' }}>FBNINGLA</div>
             </div>
           </div>
