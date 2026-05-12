@@ -87,7 +87,7 @@ export default function Donate() {
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
       description: 'Donation to Chief Emeka Agba Foundation',
       currency: form.currency,
-      options: ['CARD', 'QR', 'USSD', 'BANK_TRANSFER'],
+      options: ['CARD', 'QR', 'PAYATTITUE', 'WALLET', 'ACCOUNT'],
       callback: async (response) => {
         console.log('FirstChekout callback response:', response)
         setLoading(false)
