@@ -127,7 +127,7 @@ export default function Donate() {
 
     console.log('Launching FirstChekout popup...')
     console.log('Ref:', reference, '| Amount:', form.amount, '| Email:', form.email)
-
+ console.log(txn)
     try {
       if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
         await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
