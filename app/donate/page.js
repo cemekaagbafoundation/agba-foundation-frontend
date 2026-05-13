@@ -48,7 +48,7 @@ export default function Donate() {
         {
           name: form.name || 'Anonymous',
           email: form.email,
-          amount: Number(form.amount),
+          amount: Number(form.amount) * 100,
           reference,
           currency: form.currency,
         }
@@ -74,7 +74,7 @@ export default function Donate() {
     const txn = {
       live: false,
       ref: reference,
-      amount: Number(form.amount),
+      amount: Number(form.amount) * 100,
       customer: {
         firstname: nameParts[0],
         lastname: nameParts.slice(1).join(' ') || 'Donor',
