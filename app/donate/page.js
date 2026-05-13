@@ -121,8 +121,8 @@ export default function Donate() {
 
     // ✅ Correct URLs from First Bank documentation
     const addressUrl = {
-      BaseFrame: 'https://www.firstchekoutdev.com',
-      InitiatePaymentURI: 'https://www.firstchekoutdev.com/initiateTransaction',
+      BaseFrame: 'https://paymentcheckoutui-qa.azurewebsites.net',
+      InitiatePaymentURI: 'https://payment-checkout-dev.azurewebsites.net/api/v2/transactions/initiate',
     }
 
     console.log('Launching FirstChekout popup...')
