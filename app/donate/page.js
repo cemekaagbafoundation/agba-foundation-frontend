@@ -62,6 +62,7 @@ export default function Donate() {
     try {
       const mod = await import('firstchekout')
       FBNCheckout = mod.default || mod
+      console.log('FBNCheckout loaded, keys:', Object.keys(FBNCheckout))
     } catch (e) {
       setLoading(false)
       setMsg('Payment SDK failed to load. Please use bank transfer below.')
@@ -81,7 +82,7 @@ export default function Donate() {
         id: form.email,
       },
       fees: [],
-      paymentAlias: 'Chief-EA-F',
+      paymentAlias: '',
       meta: { foundation: 'Chief Emeka Agba Foundation' },
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
       description: 'Donation to Chief Emeka Agba Foundation',
@@ -126,6 +127,7 @@ export default function Donate() {
 
     console.log('Launching FirstChekout popup...')
     console.log('Ref:', reference, '| Amount:', form.amount, '| Email:', form.email)
+
     try {
       if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
         await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
