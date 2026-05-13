@@ -82,7 +82,7 @@ export default function Donate() {
         id: form.email,
       },
       fees: [],
-      paymentAlias: '',
+      paymentAlias: 'Chief-EA-F',
       meta: { foundation: 'Chief Emeka Agba Foundation' },
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
       description: 'Donation to Chief Emeka Agba Foundation',
@@ -127,7 +127,7 @@ export default function Donate() {
 
     console.log('Launching FirstChekout popup...')
     console.log('Ref:', reference, '| Amount:', form.amount, '| Email:', form.email)
-
+console.log(txn)
     try {
       if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
         await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
