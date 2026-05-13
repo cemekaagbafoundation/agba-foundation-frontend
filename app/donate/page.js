@@ -82,7 +82,7 @@ export default function Donate() {
         id: form.email,
       },
       fees: [],
-      paymentAlias: 'Chief-EA-F',
+      // // // paymentAlias: 'Chief-EA-F',
       meta: { foundation: 'Chief Emeka Agba Foundation' },
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
       description: 'Donation to Chief Emeka Agba Foundation',
