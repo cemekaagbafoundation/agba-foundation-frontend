@@ -89,7 +89,7 @@ export default function Donate() {
       currency: form.currency,
       options: ['CARD', 'QR', 'WALLET', 'PAYATTITUE'],
       callback: async (response) => {
-        console.log('FirstChekout callback:', JSON.stringify(response))
+        console.log('FULL CALLBACK RESPONSE:', JSON.stringify(response, null, 2))
         setLoading(false)
         const status = (response && (response.status || response.transactionStatus || '')).toString()
         const isSuccess =
