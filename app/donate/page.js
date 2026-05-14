@@ -72,7 +72,7 @@ export default function Donate() {
 
     // Transaction object — matches sample payload structure exactly
     const txn = {
-      live: false,
+      live: true,
       ref: reference,
       amount: Number(form.amount),
       customer: {
@@ -121,8 +121,8 @@ export default function Donate() {
 
     // ✅ Correct URLs from First Bank documentation
     const addressUrl = {
-      BaseFrame: 'https://paymentcheckoutui-qa.azurewebsites.net',
-      InitiatePaymentURI: 'https://payment-checkout-dev.azurewebsites.net/api/v2/transactions/initiate',
+      BaseFrame: 'https://checkout.firstchekout.com',
+      InitiatePaymentURI: 'https://www.firstchekout.com/chekoutframeapi/api/v2/transactions/initiate',
     }
 
     console.log('Launching FirstChekout popup...')
