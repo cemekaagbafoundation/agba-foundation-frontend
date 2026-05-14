@@ -91,7 +91,7 @@ export default function Donate() {
       callback: async (response) => {
         console.log('FULL CALLBACK RESPONSE:', JSON.stringify(response, null, 2))
         setLoading(false)
-        const status = (response && (response.status || response.transactionStatus || '')).toString()
+        const status = (response && (response.event || response.status || response.transactionStatus || '')).toString()
         const isSuccess =
           status === 'successful' || status === 'SUCCESS' ||
           status === 'success' || status === 'SUCCESSFUL' ||
