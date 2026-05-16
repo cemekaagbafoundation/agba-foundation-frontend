@@ -347,7 +347,7 @@ const saveContent = async (key) => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-          {tabs.map(t => <button key={t} style={tabBtn(t)} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+          {tabs.map(t => <button key={t} style={tabBtn(t)} onClick={() => { setTab(t); if (t === 'donations') { const h = { 'x-admin-token': localStorage.getItem('adminToken') }; axios.get(`${API}/api/donations`, { headers: h }).then(r => setDonations(r.data || [])).catch(() => {}); } }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
         </div>
 
         {/* ══ APPLICATIONS ══ */}
