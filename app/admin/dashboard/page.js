@@ -26,7 +26,6 @@ function HeroImageUpload({ section, label, hint }) {
     try {
       const token = localStorage.getItem('adminToken')
       let image_url = currentImg
-
       if (file) {
         const fd = new FormData()
         fd.append('image', file)
@@ -129,7 +128,7 @@ export default function Dashboard() {
   const loadAll = async (t) => {
     const h = { 'x-admin-token': t || localStorage.getItem('adminToken') }
     const safe = (p) => p.catch(() => ({ data: [] }))
-    const [appsRes, newsRes, donaRes, msgsRes, galRes, progRes, transRes, contentRes, partRes] = await Promise.all([
+    const [appsRes, newsRes, donaRes, msgsRes, galRes, progRes, transRes, contentRes, partRes, webhookRes] = await Promise.all([
       safe(axios.get(`${API}/api/apply`, { headers: h })),
       safe(axios.get(`${API}/api/newsletter`, { headers: h })),
       safe(axios.get(`${API}/api/donations`, { headers: h })),
@@ -167,6 +166,16 @@ export default function Dashboard() {
     }
   }
 
+  const reloadDonations = () => {
+    const h = getHeaders()
+    axios.get(`${API}/api/donations`, { headers: h }).then(r => setDonations(r.data || [])).catch(() => {})
+  }
+
+  const reloadWebhooks = () => {
+    const h = getHeaders()
+    axios.get(`${API}/api/firstbank/webhook-logs`, { headers: h }).then(r => setWebhookLogs(r.data || [])).catch(() => {})
+  }
+
   useEffect(() => {
     let result = [...applications]
     if (appSearch) {
@@ -199,24 +208,21 @@ export default function Dashboard() {
     setCopied(label); setTimeout(() => setCopied(''), 2000)
   }
 
-const saveContent = async (key) => {
+  const saveContent = async (key) => {
     try {
       const item = content[key]
       if (item?.id) {
-        // Update existing
         await axios.put(
           `${API}/api/content/${item.id}`,
           { content: contentEdits[key] },
           { headers: getHeaders() }
         )
       } else {
-        // Content row doesn't exist yet — create it via backend
         await axios.post(
           `${API}/api/content`,
           { section_name: key, content: contentEdits[key] },
           { headers: getHeaders() }
         )
-        // Reload content map after creating
         const res = await axios.get(`${API}/api/content`)
         if (Array.isArray(res.data)) {
           const map = {}
@@ -230,6 +236,7 @@ const saveContent = async (key) => {
       setContentMsg('Error saving: ' + (err.response?.data?.error || err.message))
     }
   }
+
   const saveStats = async () => {
     try {
       await axios.put(`${API}/api/transparency/stats`, stats, { headers: getHeaders() })
@@ -350,7 +357,15 @@ const saveContent = async (key) => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-          {tabs.map(t => <button key={t} style={tabBtn(t)} onClick={() => { setTab(t); if (t === 'donations') { const h = { 'x-admin-token': localStorage.getItem('adminToken') }; axios.get(`${API}/api/donations`, { headers: h }).then(r => setDonations(r.data || [])).catch(() => {}); } }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+          {tabs.map(t => (
+            <button key={t} style={tabBtn(t)} onClick={() => {
+              setTab(t)
+              if (t === 'donations') reloadDonations()
+              if (t === 'webhooks') reloadWebhooks()
+            }}>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
         </div>
 
         {/* ══ APPLICATIONS ══ */}
@@ -382,11 +397,11 @@ const saveContent = async (key) => {
                 <button style={btnGhost} onClick={() => copyText(applications.map(a => a.phone).join(','), 'all-phones')}>
                   {copied === 'all-phones' ? '✓ Copied' : `Copy All Phones (${applications.length})`}
                 </button>
-                {filteredApps.length < applications.length && <>
+                {filteredApps.length < applications.length && (
                   <button style={btn} onClick={() => copyText(filteredApps.map(a => a.email).join(','), 'sel-emails')}>
                     {copied === 'sel-emails' ? '✓ Copied' : `Copy Selected (${filteredApps.length})`}
                   </button>
-                </>}
+                )}
               </div>
             </div>
             <div style={{ overflowX: 'auto' }}>
@@ -484,12 +499,15 @@ const saveContent = async (key) => {
         {/* ══ DONATIONS ══ */}
         {tab === 'donations' && (
           <div>
-            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Donations ({donations.length})</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ color: '#c9911a' }}>Donations ({donations.length})</h2>
+              <button style={btnGhost} onClick={reloadDonations}>🔄 Refresh</button>
+            </div>
             {donations.map(d => (
               <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderBottom: '1px solid #0d1f0d', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
                   <div style={{ fontWeight: '600', color: '#f0f0f0' }}>{d.name || 'Anonymous'}</div>
-                  <div style={{ color: '#7a9e7a', fontSize: '0.85rem' }}>{d.email} · {new Date(d.created_at).toLocaleDateString()}</div>
+                  <div style={{ color: '#7a9e7a', fontSize: '0.85rem' }}>{d.email} · {d.gateway} · {new Date(d.created_at).toLocaleDateString()}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: '#c9911a', fontWeight: 'bold' }}>₦{Number(d.amount).toLocaleString()}</div>
@@ -603,7 +621,6 @@ const saveContent = async (key) => {
             <h2 style={{ color: '#c9911a', marginBottom: '0.5rem' }}>Content Management</h2>
             <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>Edit text content and manage all section images.</p>
             {contentMsg && <p style={{ color: contentMsg.startsWith('Error') ? '#f87171' : '#4ade80', marginBottom: '1rem' }}>{contentMsg}</p>}
-
             {[
               { key: 'hero', label: 'Hero Tagline' },
               { key: 'about', label: 'About Writeup' },
@@ -623,19 +640,16 @@ const saveContent = async (key) => {
                 <button style={btn} onClick={() => saveContent(item.key)}>💾 Save {item.label}</button>
               </div>
             ))}
-
             <div style={{ borderTop: '1px solid #1a4a20', paddingTop: '1.5rem', marginTop: '1.5rem', marginBottom: '1rem' }}>
               <h3 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Image & Logo Management</h3>
               <p style={{ color: '#7a9e7a', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
                 These images appear only in their designated sections — they do NOT appear in the photo gallery.
               </p>
             </div>
-
             <HeroImageUpload section="logo" label="Foundation Logo" hint="Appears in the Navbar beside the foundation name" />
             <HeroImageUpload section="main_hero" label="Main Hero Image" hint="Large image on the homepage hero section (right side)" />
             <HeroImageUpload section="about_hero" label="Founder Portrait (About Section)" hint="Portrait photo in the About section — add founder name in Title field" />
             <HeroImageUpload section="transformation_hero" label="Youth Transformation City Image" hint="Image in the Chief Emeka Agba Youth Transformation City section" />
-
             {contentEdits['youtube_url'] && (
               <div style={{ background: '#0d1f0d', border: '1px solid #1a4a20', borderRadius: '10px', padding: '1.2rem', marginTop: '1rem' }}>
                 <label style={{ color: '#c9911a', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>YouTube Preview</label>
@@ -668,11 +682,13 @@ const saveContent = async (key) => {
           </div>
         )}
 
-
         {/* ══ WEBHOOKS ══ */}
         {tab === 'webhooks' && (
           <div>
-            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Webhook Logs ({webhookLogs.length})</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ color: '#c9911a' }}>Webhook Logs ({webhookLogs.length})</h2>
+              <button style={btnGhost} onClick={reloadWebhooks}>🔄 Refresh</button>
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
                 <thead>
