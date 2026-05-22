@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [filteredApps, setFilteredApps] = useState([])
   const [newsletters, setNewsletters] = useState([])
   const [donations, setDonations] = useState([])
+  const [webhookLogs, setWebhookLogs] = useState([])
   const [messages, setMessages] = useState([])
   const [filteredMsgs, setFilteredMsgs] = useState([])
   const [gallery, setGallery] = useState([])
@@ -138,6 +139,7 @@ export default function Dashboard() {
       safe(axios.get(`${API}/api/transparency`)),
       safe(axios.get(`${API}/api/content`)),
       safe(axios.get(`${API}/api/partners`)),
+      safe(axios.get(`${API}/api/firstbank/webhook-logs`, { headers: h })),
     ])
     setApplications(appsRes.data || [])
     setFilteredApps(appsRes.data || [])
@@ -148,6 +150,7 @@ export default function Dashboard() {
     setGallery(galRes.data || [])
     setPrograms(progRes.data || [])
     setPartners(partRes.data || [])
+    setWebhookLogs(webhookRes.data || [])
     if (transRes.data) {
       setStats({
         youths_trained: transRes.data.youths_trained || 0,
@@ -323,7 +326,7 @@ const saveContent = async (key) => {
     } catch (err) { console.error(err) }
   }
 
-  const tabs = ['applications', 'messages', 'newsletter', 'donations', 'gallery', 'programs', 'partners', 'content', 'impact']
+  const tabs = ['applications', 'messages', 'newsletter', 'donations', 'gallery', 'programs', 'partners', 'content', 'impact', 'webhooks']
   const tabBtn = (t) => ({
     padding: '0.55rem 1rem', border: '1px solid #1a4a20', borderRadius: '6px', cursor: 'pointer',
     background: tab === t ? '#c9911a' : '#0d1f0d',
@@ -662,6 +665,47 @@ const saveContent = async (key) => {
             ))}
             <button style={btn} onClick={saveStats}>💾 Save Stats</button>
             {statsMsg && <span style={{ color: statsMsg.startsWith('Error') ? '#f87171' : '#4ade80', marginLeft: '1rem' }}>{statsMsg}</span>}
+          </div>
+        )}
+
+
+        {/* ══ WEBHOOKS ══ */}
+        {tab === 'webhooks' && (
+          <div>
+            <h2 style={{ color: '#c9911a', marginBottom: '1.5rem' }}>Webhook Logs ({webhookLogs.length})</h2>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #1a4a20' }}>
+                    {['Time', 'Provider', 'Event', 'Reference', 'Status', 'Processed', 'Payload'].map((col, i) => (
+                      <th key={i} style={{ padding: '0.7rem 0.5rem', color: '#c9911a', textAlign: 'left', whiteSpace: 'nowrap' }}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {webhookLogs.map(w => (
+                    <tr key={w.id} style={{ borderBottom: '1px solid #0d1f0d' }}>
+                      <td style={{ padding: '0.7rem 0.5rem', whiteSpace: 'nowrap', color: '#7a9e7a' }}>{new Date(w.received_at).toLocaleString()}</td>
+                      <td style={{ padding: '0.7rem 0.5rem', color: '#c9911a' }}>{w.provider}</td>
+                      <td style={{ padding: '0.7rem 0.5rem' }}>{w.event_type}</td>
+                      <td style={{ padding: '0.7rem 0.5rem', fontSize: '0.75rem' }}>{w.payload && (w.payload.reference || (w.payload.data && w.payload.data.reference)) || '-'}</td>
+                      <td style={{ padding: '0.7rem 0.5rem' }}>
+                        <span style={{ fontSize: '0.78rem', color: w.status === 'success' ? '#4ade80' : w.status === 'failed' ? '#f87171' : '#fbbf24', background: w.status === 'success' ? 'rgba(74,222,128,0.1)' : w.status === 'failed' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)', padding: '2px 8px', borderRadius: '20px' }}>{w.status}</span>
+                      </td>
+                      <td style={{ padding: '0.7rem 0.5rem' }}>
+                        <span style={{ color: w.processed ? '#4ade80' : '#f87171' }}>{w.processed ? '✓' : '✗'}</span>
+                      </td>
+                      <td style={{ padding: '0.7rem 0.5rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#7a9e7a', fontSize: '0.75rem' }}>
+                        {JSON.stringify(w.payload)}
+                      </td>
+                    </tr>
+                  ))}
+                  {webhookLogs.length === 0 && (
+                    <tr><td colSpan={7} style={{ padding: '2rem', color: '#7a9e7a', textAlign: 'center' }}>No webhook logs yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
