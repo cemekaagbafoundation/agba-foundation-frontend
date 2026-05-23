@@ -239,7 +239,7 @@ export default function Dashboard() {
 
   const saveStats = async () => {
     try {
-      await axios.put(`${API}/api/transparency/stats`, stats, { headers: getHeaders() })
+      await axios.put(`${API}/api/transparency/stats`, stats, { headers: { 'x-admin-token': token } })
       setStatsMsg('Stats saved!'); setTimeout(() => setStatsMsg(''), 3000)
     } catch (err) {
       setStatsMsg('Error: ' + (err.response?.data?.error || err.message))
