@@ -4,20 +4,30 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 
 export default function AdminLogin() {
-  const [mode, setMode] = useState('login') // login | forgot | sent
+  const [mode, setMode] = useState('login')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const login = () => {
+  const login = async () => {
     if (!password) { setError('Enter your admin password'); return }
-    // Store in both localStorage and sessionStorage for redundancy
-    localStorage.setItem('adminToken', password)
-    sessionStorage.setItem('adminToken', password)
-    // Also set a cookie as backup
-    document.cookie = `adminToken=${password}; path=/; max-age=86400`
-    router.push('/admin/dashboard')
+    setLoading(true)
+    setError('')
+    try {
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        { password }
+      )
+      const token = res.data.token || password
+      localStorage.setItem('adminToken', token)
+      sessionStorage.setItem('adminToken', token)
+      document.cookie = `adminToken=${token}; path=/; max-age=86400`
+      router.push('/admin/dashboard')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Incorrect password. Please try again.')
+      setLoading(false)
+    }
   }
 
   const sendReset = async () => {
@@ -46,11 +56,13 @@ export default function AdminLogin() {
         {mode === 'login' && (
           <>
             <input type="password" placeholder="Admin Password" value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => { setPassword(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && login()}
               style={inp} />
             {error && <p style={{ color: '#f87171', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{error}</p>}
-            <button onClick={login} style={btn}>Login</button>
+            <button onClick={login} disabled={loading} style={{ ...btn, background: loading ? '#8a6a10' : '#d4a017', cursor: loading ? 'not-allowed' : 'pointer' }}>
+              {loading ? 'Verifying...' : 'Login'}
+            </button>
             <button onClick={() => { setMode('forgot'); setError('') }}
               style={{ width: '100%', background: 'transparent', color: '#d4a017', border: 'none', cursor: 'pointer', marginTop: '1rem', fontSize: '0.9rem' }}>
               Forgot Password?
@@ -81,8 +93,7 @@ export default function AdminLogin() {
             <p style={{ color: '#aaa', textAlign: 'center', lineHeight: 1.7 }}>
               Reset link sent to <strong style={{ color: '#d4a017' }}>C.emekaagbafoundation@gmail.com</strong>. Check your inbox and follow the link.
             </p>
-            <button onClick={() => setMode('login')}
-              style={{ ...btn, marginTop: '1.5rem' }}>
+            <button onClick={() => setMode('login')} style={{ ...btn, marginTop: '1.5rem' }}>
               Back to Login
             </button>
           </>
