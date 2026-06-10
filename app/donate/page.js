@@ -100,14 +100,6 @@ export default function Donate() {
           setMsg('Thank you! Your donation of ₦' + Number(form.amount).toLocaleString() + ' has been received.')
           setMsgType('success')
           setForm({ name: '', email: '', amount: '', currency: 'NGN' })
-          try {
-            await axios.post(
-              process.env.NEXT_PUBLIC_API_URL + '/api/firstbank/verify-payment',
-              { reference }
-            )
-          } catch (e) {
-            console.warn('Verify call failed:', e.message)
-          }
         } else {
           setMsg('Payment was not completed. Please try again or use bank transfer below.')
           setMsgType('error')
