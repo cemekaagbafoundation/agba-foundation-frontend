@@ -22,10 +22,7 @@ export default function TransformationCity() {
 
   useEffect(() => {
     // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
-      .then(r => {
-        const t = r.data.find(h => h.section === 'transformation_hero')
-        if (t) setHeroData(t)
-      }).catch(() => {})
+    // .then handler disabled
   }, [])
 
   return (

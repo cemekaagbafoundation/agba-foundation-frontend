@@ -12,16 +12,10 @@ export default function Hero() {
 
   useEffect(() => {
     // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
-      .then(r => {
-        const hero = r.data.find(h => h.section === 'main_hero')
-        if (hero) setHeroData(hero)
-      }).catch(() => {})
+    // .then handler disabled
 
     // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
-      .then(r => {
-        const item = r.data.find(c => c.section_name === 'hero')
-        if (item) setTagline(item.content)
-      }).catch(() => {})
+    // .then handler disabled
   }, [])
 
   return (

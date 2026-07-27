@@ -11,16 +11,10 @@ export default function About() {
 
   useEffect(() => {
     // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
-      .then(r => {
-        const about = r.data.find(h => h.section === 'about_hero')
-        if (about) setAboutHero(about)
-      }).catch(() => {})
+    // .then handler disabled
 
     // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
-      .then(r => {
-        const item = r.data.find(c => c.section_name === 'about')
-        if (item) setWriteup(item.content)
-      }).catch(() => {})
+    // .then handler disabled
   }, [])
 
   return (
