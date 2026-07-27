@@ -4,7 +4,8 @@ import axios from 'axios'
 import Navbar from '../../components/Navbar'
 import Link from 'next/link'
 
-const AMOUNTS = [1000, 2000, 5000, 10000, 25000, 50000]
+const NGN_AMOUNTS = [1000, 2000, 5000, 10000, 25000, 50000]
+const USD_AMOUNTS = [5, 10, 25, 50, 100, 250]
 
 const BANK_DETAILS = [
   { currency: 'Naira (NGN)', account: '2035918835' },
@@ -17,7 +18,9 @@ const generateRef = () =>
   'CEA_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8).toUpperCase()
 
 export default function Donate() {
-  const [form, setForm] = useState({ name: '', email: '', amount: '', currency: 'NGN' })
+  const [tab, setTab] = useState('ngn') // 'ngn' | 'usd'
+  const [ngnForm, setNgnForm] = useState({ name: '', email: '', amount: '' })
+  const [usdForm, setUsdForm] = useState({ name: '', email: '', amount: '' })
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState('success')
   const [loading, setLoading] = useState(false)
@@ -29,67 +32,53 @@ export default function Donate() {
     setTimeout(() => setCopied(''), 2000)
   }
 
+  // ── NGN via FirstChekout ──────────────────────────────────────
   const payWithFirstChekout = async () => {
-    if (!form.email || !form.amount) {
-      setMsg('Please enter your email and amount.')
-      setMsgType('error')
-      return
+    if (!ngnForm.email || !ngnForm.amount) {
+      setMsg('Please enter your email and amount.'); setMsgType('error'); return
     }
-
     const reference = generateRef()
-    const nameParts = (form.name || 'Anonymous Donor').trim().split(' ')
-    setLoading(true)
-    setMsg('')
+    const nameParts = (ngnForm.name || 'Anonymous Donor').trim().split(' ')
+    setLoading(true); setMsg('')
 
-    // Save pending donation to backend
     try {
-      await axios.post(
-        process.env.NEXT_PUBLIC_API_URL + '/api/firstbank/save-donation',
-        {
-          name: form.name || 'Anonymous',
-          email: form.email,
-          amount: Number(form.amount),
-          reference,
-          currency: form.currency,
-        }
-      )
-    } catch (e) {
-      console.warn('Pre-save failed (non-blocking):', e.message)
-    }
+      await axios.post(process.env.NEXT_PUBLIC_API_URL + '/api/firstbank/save-donation', {
+        name: ngnForm.name || 'Anonymous',
+        email: ngnForm.email,
+        amount: Number(ngnForm.amount),
+        reference,
+        currency: 'NGN',
+      })
+    } catch (e) { console.warn('Pre-save failed:', e.message) }
 
-    // Dynamically import — browser only, avoids SSR crash
     let FBNCheckout
     try {
       const mod = await import('firstchekout')
       FBNCheckout = mod.default || mod
-      console.log('FBNCheckout loaded, keys:', Object.keys(FBNCheckout))
     } catch (e) {
       setLoading(false)
       setMsg('Payment SDK failed to load. Please use bank transfer below.')
-      setMsgType('error')
-      return
+      setMsgType('error'); return
     }
 
-    // Transaction object — matches sample payload structure exactly
     const txn = {
       live: true,
       ref: reference,
-      amount: Number(form.amount),
+      amount: Number(ngnForm.amount),
       customer: {
         firstname: nameParts[0],
         lastname: nameParts.slice(1).join(' ') || 'Donor',
-        email: form.email,
-        id: form.email,
+        email: ngnForm.email,
+        id: ngnForm.email,
       },
       fees: [],
       paymentAlias: 'Chief-EA-F',
-      meta: { foundation: 'Chief Emeka Agba Foundation' },
+      meta: { foundation: 'Chief Emeka Agba Foundation', currency: 'NGN' },
       publicKey: process.env.NEXT_PUBLIC_FIRSTCHEKOUT_PUBLIC_KEY,
-      description: 'Donation to Chief Emeka Agba Foundation',
-      currency: form.currency,
+      description: 'Donation to Chief Emeka Agba Foundation (NGN)',
+      currency: 'NGN',
       options: ['CARD', 'QR', 'WALLET', 'PAYATTITUE'],
       callback: async (response) => {
-        console.log('FULL CALLBACK RESPONSE:', JSON.stringify(response, null, 2))
         setLoading(false)
         const status = (response && (response.event || response.status || response.transactionStatus || '')).toString()
         const isSuccess =
@@ -97,44 +86,105 @@ export default function Donate() {
           status === 'success' || status === 'SUCCESSFUL' ||
           status === '00' || response.success === true
         if (isSuccess) {
-          setMsg('Thank you! Your donation of ₦' + Number(form.amount).toLocaleString() + ' has been received.')
+          setMsg('Thank you! Your NGN donation of ₦' + Number(ngnForm.amount).toLocaleString() + ' has been received.')
           setMsgType('success')
-          setForm({ name: '', email: '', amount: '', currency: 'NGN' })
+          setNgnForm({ name: '', email: '', amount: '' })
         } else {
           setMsg('Payment was not completed. Please try again or use bank transfer below.')
           setMsgType('error')
         }
       },
-      onClose: () => {
-        setLoading(false)
-        console.log('FirstChekout popup closed')
-      },
+      onClose: () => { setLoading(false) },
     }
 
-    // ✅ Correct URLs from First Bank documentation
     const addressUrl = {
       BaseFrame: 'https://checkout.firstchekout.com',
       InitiatePaymentURI: 'https://www.firstchekout.com/chekoutframeapi/api/v2/transactions/initiate',
     }
 
-    console.log('Launching FirstChekout popup...')
-    console.log('Ref:', reference, '| Amount:', form.amount, '| Email:', form.email)
-console.log(txn)
     try {
       if (typeof FBNCheckout.initiateTransactionAsync === 'function') {
         await FBNCheckout.initiateTransactionAsync(txn, addressUrl)
       } else if (typeof FBNCheckout.initiateTransaction === 'function') {
-        FBNCheckout.initiateTransaction(txn)
-        setLoading(false)
+        FBNCheckout.initiateTransaction(txn); setLoading(false)
       } else {
-        throw new Error('No valid method on FBNCheckout. Keys: ' + Object.keys(FBNCheckout).join(', '))
+        throw new Error('No valid method on FBNCheckout')
       }
     } catch (err) {
-      console.error('FBNCheckout launch error:', err)
       setLoading(false)
       setMsg('Payment popup failed. Please use bank transfer below.')
       setMsgType('error')
     }
+  }
+
+  // ── USD via Paystack ──────────────────────────────────────────
+  const payWithPaystack = async () => {
+    if (!usdForm.email || !usdForm.amount) {
+      setMsg('Please enter your email and amount.'); setMsgType('error'); return
+    }
+    const reference = generateRef()
+    setLoading(true); setMsg('')
+
+    try {
+      await axios.post(process.env.NEXT_PUBLIC_API_URL + '/api/paystack/save-donation', {
+        name: usdForm.name || 'Anonymous',
+        email: usdForm.email,
+        amount: Number(usdForm.amount),
+        reference,
+        currency: 'USD',
+      })
+    } catch (e) { console.warn('Pre-save failed:', e.message) }
+
+    // Load Paystack inline script dynamically
+    const amountInCents = Math.round(Number(usdForm.amount) * 100)
+
+    const handler = window.PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+      email: usdForm.email,
+      amount: amountInCents,
+      currency: 'USD',
+      ref: reference,
+      metadata: {
+        custom_fields: [
+          { display_name: 'Donor Name', variable_name: 'donor_name', value: usdForm.name || 'Anonymous' },
+          { display_name: 'Foundation', variable_name: 'foundation', value: 'Chief Emeka Agba Foundation' },
+          { display_name: 'Currency', variable_name: 'currency', value: 'USD' },
+        ]
+      },
+      callback: async (response) => {
+        setLoading(false)
+        if (response.status === 'success') {
+          // Verify with backend
+          try {
+            await axios.post(process.env.NEXT_PUBLIC_API_URL + '/api/paystack/verify-payment', { reference })
+          } catch (e) { console.warn('Verify failed:', e.message) }
+          setMsg('Thank you! Your USD donation of $' + Number(usdForm.amount).toLocaleString() + ' has been received.')
+          setMsgType('success')
+          setUsdForm({ name: '', email: '', amount: '' })
+        } else {
+          setMsg('Payment was not completed. Please try again or use bank transfer below.')
+          setMsgType('error')
+        }
+      },
+      onClose: () => { setLoading(false) },
+    })
+    handler.openIframe()
+  }
+
+  // Ensure Paystack script is loaded
+  const loadPaystackScript = () => {
+    return new Promise((resolve) => {
+      if (window.PaystackPop) { resolve(); return }
+      const script = document.createElement('script')
+      script.src = 'https://js.paystack.co/v1/inline.js'
+      script.onload = resolve
+      document.body.appendChild(script)
+    })
+  }
+
+  const handleUSDPay = async () => {
+    await loadPaystackScript()
+    payWithPaystack()
   }
 
   const inp = {
@@ -143,6 +193,14 @@ console.log(txn)
     color: '#fff', width: '100%', fontSize: '1rem',
     marginBottom: '1rem', outline: 'none',
   }
+
+  const tabBtn = (t) => ({
+    flex: 1, padding: '0.8rem', border: '1px solid #1a4a20',
+    borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+    fontSize: '0.95rem', transition: 'all 0.2s',
+    background: tab === t ? '#c9911a' : 'transparent',
+    color: tab === t ? '#061209' : '#c9911a',
+  })
 
   return (
     <>
@@ -159,42 +217,89 @@ console.log(txn)
               Your contribution empowers Nigerian youths with skills and opportunity.
             </p>
 
-            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Quick amounts (₦):</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.2rem' }}>
-              {AMOUNTS.map(a => (
-                <button key={a} onClick={() => setForm({ ...form, amount: a })} style={{
-                  background: form.amount === a ? '#c9911a' : 'transparent',
-                  color: form.amount === a ? '#061209' : '#c9911a',
-                  border: '1px solid #c9911a', borderRadius: '6px',
-                  padding: '0.4rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-                }}>
-                  ₦{a.toLocaleString()}
-                </button>
-              ))}
+            {/* Currency Tab Selector */}
+            <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem' }}>
+              <button style={tabBtn('ngn')} onClick={() => { setTab('ngn'); setMsg('') }}>
+                🏦 Donate in NGN
+              </button>
+              <button style={tabBtn('usd')} onClick={() => { setTab('usd'); setMsg('') }}>
+                💵 Donate in USD
+              </button>
             </div>
 
-            <input style={inp} placeholder="Your Name (optional)" value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })} />
-            <input style={inp} placeholder="Email Address *" type="email" value={form.email}
-              onChange={e => setForm({ ...form, email: e.target.value })} />
-            <input style={inp} placeholder="Amount in NGN *" type="number" value={form.amount}
-              onChange={e => setForm({ ...form, amount: e.target.value })} />
+            {/* ── NGN Tab ── */}
+            {tab === 'ngn' && (
+              <>
+                <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Quick amounts (₦):</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.2rem' }}>
+                  {NGN_AMOUNTS.map(a => (
+                    <button key={a} onClick={() => setNgnForm({ ...ngnForm, amount: a })} style={{
+                      background: ngnForm.amount === a ? '#c9911a' : 'transparent',
+                      color: ngnForm.amount === a ? '#061209' : '#c9911a',
+                      border: '1px solid #c9911a', borderRadius: '6px',
+                      padding: '0.4rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+                    }}>
+                      ₦{a.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+                <input style={inp} placeholder="Your Name (optional)" value={ngnForm.name}
+                  onChange={e => setNgnForm({ ...ngnForm, name: e.target.value })} />
+                <input style={inp} placeholder="Email Address *" type="email" value={ngnForm.email}
+                  onChange={e => setNgnForm({ ...ngnForm, email: e.target.value })} />
+                <input style={inp} placeholder="Amount in NGN (₦) *" type="number" value={ngnForm.amount}
+                  onChange={e => setNgnForm({ ...ngnForm, amount: e.target.value })} />
+                <button onClick={payWithFirstChekout} disabled={loading} style={{
+                  width: '100%', padding: '1rem', border: 'none', borderRadius: '8px',
+                  background: loading ? '#6a5010' : '#c9911a', color: '#061209',
+                  fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
+                }}>
+                  {loading ? 'Processing...' : '🏦 Pay with First Bank (NGN)'}
+                </button>
+                <p style={{ color: '#3a5a3a', fontSize: '0.78rem', textAlign: 'center' }}>
+                  🔒 Secured by First Bank of Nigeria · Currency: NGN
+                </p>
+              </>
+            )}
 
-            <button
-              onClick={payWithFirstChekout}
-              disabled={loading}
-              style={{
-                width: '100%', padding: '1rem', border: 'none', borderRadius: '8px',
-                background: loading ? '#6a5010' : '#c9911a',
-                color: '#061209', fontWeight: 'bold',
-                cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
-              }}>
-              {loading ? 'Processing...' : '🏦 Pay with FirstChekout'}
-            </button>
+            {/* ── USD Tab ── */}
+            {tab === 'usd' && (
+              <>
+                <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Quick amounts ($):</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.2rem' }}>
+                  {USD_AMOUNTS.map(a => (
+                    <button key={a} onClick={() => setUsdForm({ ...usdForm, amount: a })} style={{
+                      background: usdForm.amount === a ? '#c9911a' : 'transparent',
+                      color: usdForm.amount === a ? '#061209' : '#c9911a',
+                      border: '1px solid #c9911a', borderRadius: '6px',
+                      padding: '0.4rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+                    }}>
+                      ${a}
+                    </button>
+                  ))}
+                </div>
+                <input style={inp} placeholder="Your Name (optional)" value={usdForm.name}
+                  onChange={e => setUsdForm({ ...usdForm, name: e.target.value })} />
+                <input style={inp} placeholder="Email Address *" type="email" value={usdForm.email}
+                  onChange={e => setUsdForm({ ...usdForm, email: e.target.value })} />
+                <input style={inp} placeholder="Amount in USD ($) *" type="number" value={usdForm.amount}
+                  onChange={e => setUsdForm({ ...usdForm, amount: e.target.value })} />
+                <button onClick={handleUSDPay} disabled={loading} style={{
+                  width: '100%', padding: '1rem', border: 'none', borderRadius: '8px',
+                  background: loading ? '#6a5010' : '#1a6b3a', color: '#fff',
+                  fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', marginBottom: '1rem',
+                }}>
+                  {loading ? 'Processing...' : '💵 Pay with Paystack (USD)'}
+                </button>
+                <p style={{ color: '#3a5a3a', fontSize: '0.78rem', textAlign: 'center' }}>
+                  🔒 Secured by Paystack · Currency: USD
+                </p>
+              </>
+            )}
 
             {msg && (
               <div style={{
-                padding: '1rem', borderRadius: '8px', textAlign: 'center',
+                padding: '1rem', borderRadius: '8px', textAlign: 'center', marginTop: '1rem',
                 background: msgType === 'success' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
                 border: '1px solid ' + (msgType === 'success' ? '#4ade80' : '#f87171'),
                 color: msgType === 'success' ? '#4ade80' : '#f87171',
@@ -203,12 +308,9 @@ console.log(txn)
                 {msg}
               </div>
             )}
-
-            <p style={{ color: '#3a5a3a', fontSize: '0.78rem', textAlign: 'center', marginTop: '1rem' }}>
-              🔒 Secured by First Bank of Nigeria
-            </p>
           </div>
 
+          {/* Bank Transfer Section */}
           <div style={{ background: '#0d1f0d', padding: '2.5rem', borderRadius: '14px', border: '1px solid #1a4a20' }}>
             <h2 style={{ color: '#c9911a', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Bank Transfer</h2>
             <p style={{ color: '#7a9e7a', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -217,7 +319,6 @@ console.log(txn)
                 info@chiefemekaagbafoundation.com
               </a>
             </p>
-
             {[
               { label: 'ACCOUNT NAME', value: 'Chief Emeka Agba Foundation' },
               { label: 'BANK NAME', value: 'First Bank of Nigeria PLC' },
@@ -227,7 +328,6 @@ console.log(txn)
                 <div style={{ color: '#fff', fontWeight: 'bold' }}>{item.value}</div>
               </div>
             ))}
-
             {BANK_DETAILS.map(b => (
               <div key={b.currency} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#091509', borderRadius: '8px', border: '1px solid #1a4a20', marginBottom: '0.8rem' }}>
                 <div>
@@ -244,7 +344,6 @@ console.log(txn)
                 </button>
               </div>
             ))}
-
             <div style={{ padding: '1rem', background: '#091509', borderRadius: '8px', border: '1px solid #1a4a20' }}>
               <div style={{ color: '#c9911a', fontSize: '0.78rem', marginBottom: '0.2rem' }}>SWIFT CODE (International)</div>
               <div style={{ color: '#fff', fontWeight: 'bold', letterSpacing: '2px' }}>FBNINGLA</div>
@@ -256,4 +355,3 @@ console.log(txn)
     </>
   )
 }
-// Monthly Plan Updated - Fri May 22 00:48:33 UTC 2026
