@@ -3,17 +3,20 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 
 export default function About() {
-  const [aboutHero, setAboutHero] = useState({ image_url: '', title: 'Chief Emeka Agba' })
+  const [aboutHero, setAboutHero] = useState({ 
+    image_url: 'https://lvtdhwofxzqgeqrfcsaa.supabase.co/storage/v1/object/public/Gallery/1774876718755_1001382929.jpg', 
+    title: 'About the Foundation' 
+  })
   const [writeup, setWriteup] = useState('')
 
   useEffect(() => {
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
+    // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
       .then(r => {
         const about = r.data.find(h => h.section === 'about_hero')
         if (about) setAboutHero(about)
       }).catch(() => {})
 
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
+    // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
       .then(r => {
         const item = r.data.find(c => c.section_name === 'about')
         if (item) setWriteup(item.content)

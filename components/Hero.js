@@ -4,17 +4,20 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 
 export default function Hero() {
-  const [heroData, setHeroData] = useState({ image_url: '', title: '' })
+  const [heroData, setHeroData] = useState({ 
+    image_url: 'https://lvtdhwofxzqgeqrfcsaa.supabase.co/storage/v1/object/public/Gallery/1774876953551_1001394541.jpg', 
+    title: 'Chief Emeka Agba Foundation' 
+  })
   const [tagline, setTagline] = useState('')
 
   useEffect(() => {
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
+    // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
       .then(r => {
         const hero = r.data.find(h => h.section === 'main_hero')
         if (hero) setHeroData(hero)
       }).catch(() => {})
 
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
+    // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`)
       .then(r => {
         const item = r.data.find(c => c.section_name === 'hero')
         if (item) setTagline(item.content)

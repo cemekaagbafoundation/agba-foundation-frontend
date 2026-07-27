@@ -15,10 +15,13 @@ const FACILITIES = [
 ]
 
 export default function TransformationCity() {
-  const [heroData, setHeroData] = useState({ image_url: '', title: 'Chief Emeka Agba Youth Transformation City' })
+  const [heroData, setHeroData] = useState({ 
+    image_url: 'https://lvtdhwofxzqgeqrfcsaa.supabase.co/storage/v1/object/public/Gallery/hero_transformation_hero_1774959986838_1001396190.jpg', 
+    title: 'Chief Emeka Agba Youth Transformation City' 
+  })
 
   useEffect(() => {
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
+    // DISABLED: axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/hero-images`)
       .then(r => {
         const t = r.data.find(h => h.section === 'transformation_hero')
         if (t) setHeroData(t)
