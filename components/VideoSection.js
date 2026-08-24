@@ -6,11 +6,24 @@ export default function VideoSection() {
   const [url, setUrl] = useState('https://www.youtube.com/embed/dQw4w9WgXcQ')
   const [writeup, setWriteup] = useState('Watch how the Chief Emeka Agba Foundation is transforming lives across Nigeria through our landmark programs and initiatives.')
 
+  const toEmbedUrl = (url) => {
+    if (!url) return ''
+    // Already embed format
+    if (url.includes('youtube.com/embed/')) return url
+    // youtu.be/VIDEO_ID format
+    const shortMatch = url.match(/youtu\.be\/([\w-]+)/)
+    if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`
+    // youtube.com/watch?v=VIDEO_ID format
+    const watchMatch = url.match(/[?&]v=([\w-]+)/)
+    if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`
+    return url
+  }
+
   useEffect(() => {
     axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/content`).then(r => {
       const yt = r.data.find(c => c.section_name === 'youtube_url')
       const wu = r.data.find(c => c.section_name === 'impact_writeup')
-      if (yt) setUrl(yt.content)
+      if (yt) setUrl(toEmbedUrl(yt.content))
       if (wu) setWriteup(wu.content)
     }).catch(() => {})
   }, [])
