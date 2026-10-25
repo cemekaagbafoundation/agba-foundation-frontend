@@ -66,5 +66,3 @@ export default function Home() {
       </footer>
     </main>
   )
-}// CRASH_TEST
-if (typeof window === 'undefined') { throw new Error('CRASH_TEST') }
